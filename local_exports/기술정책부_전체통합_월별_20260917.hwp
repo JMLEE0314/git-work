@@ -1,0 +1,172 @@
+﻿
+          <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+          <head><meta charset='utf-8'><title>기술정책부_전체통합_월별_20260917</title>
+          <style>body{font-family:sans-serif;} table{border-collapse:collapse;width:100%;} th,td{border:1px solid #444;padding:6px;font-size:10pt;}</style>
+          </head><body>
+            <h2>기술정책부 통합 업무 이력 보고서 (월별)</h2>
+            <p>생성일시: 2026. 9. 17. 오후 3:58:24</p>
+            
+            <h3 style="color:#3730a3; margin-top:20px;">■ 집계 구분: 2026-09 (총 12건)</h3>
+            <table border="1" style="border-collapse:collapse; width:100%; font-size:10pt;">
+              <thead>
+                <tr style="background:#f1f5f9;">
+                  <th style="width:11%;">일자</th>
+                  <th style="width:11%;">구분</th>
+                  <th style="width:10%;">작성자</th>
+                  <th style="width:22%;">제목/장비명</th>
+                  <th style="width:28%;">업무기록 / 조치내역</th>
+                  <th style="width:9%;">첨부</th>
+                  <th style="width:9%;">기타</th>
+                </tr>
+              </thead>
+              <tbody>
+                
+                  <tr>
+                    <td>2026-09-16</td>
+                    <td style="font-weight:bold;">기술연구</td>
+                    <td>이정민</td>
+                    <td style="font-weight:bold;">&#039;UHD 콘텐츠 보호(CP) 시스템&#039; 재계약</td>
+                    <td>■ 기존 계약에서 지상파 방송3사가 각각 부담하던 1.13억 원을 한국전파진흥협회에서 부담하는 계약으로 신규 
+체결
+■ 정부 부처의 정책 중단 또는 방송사의 UHD 방송 정책 변경 등으로 인해 운영 중단을 결정할 경우, 계약 기간 
+중이라도 계약 해지 가능</td>
+                    <td>20260916_Mail_UHD CP 재계약관련 내용.pdf</td>
+                    <td>-</td>
+                  </tr>
+                
+                  <tr>
+                    <td>2026-09-15</td>
+                    <td style="font-weight:bold;">RF</td>
+                    <td>이정민</td>
+                    <td style="font-weight:bold;">황령산송신소 에어컨 드레인 경로 수정</td>
+                    <td>1층 에어컨 드레인 경로 심플하게 수정(1층 화장실쪽으로 경로 수정)
+2층 에어컨 2대와 1층 에어컨 2대는 1층 화장실로 배수함</td>
+                    <td>-</td>
+                    <td>추가 작업</td>
+                  </tr>
+                
+                  <tr>
+                    <td>2026-09-14</td>
+                    <td style="font-weight:bold;">RF</td>
+                    <td>이정민</td>
+                    <td style="font-weight:bold;">기장 FMR 정기검사 중 장비관리번호 불일치 발견</td>
+                    <td>크라운 FMR-250 장비는 동일하나 허가증에 기재된 장비관리번호와 다른 장비 장착되어 있음 -&gt; 기술국 사무실 창고에 원래 장비 발견 -&gt; 전파관리소에 해당 사항 통보 조치 대기중</td>
+                    <td>-</td>
+                    <td>-</td>
+                  </tr>
+                
+                  <tr>
+                    <td>2026-09-14</td>
+                    <td style="font-weight:bold;">RF</td>
+                    <td>이정민</td>
+                    <td style="font-weight:bold;">원격 유지 보수 정책 협의(추진 계획 및 26년 예산 반영안)</td>
+                    <td>유지 보수 계약 내년 예산 잡아서 추진 검토
+1. 알람 : GUI와 연동되게 재구성
+2. UPS : 485  모듈 구매 &amp; 시스템 수정
+3. 서버 DB 마이그레이션 포함
+4. 오프라인 유지(VPN은 추후 도입 검토)</td>
+                    <td>-</td>
+                    <td>-</td>
+                  </tr>
+                
+                  <tr>
+                    <td>2026-09-14</td>
+                    <td style="font-weight:bold;">Radio</td>
+                    <td>이정민</td>
+                    <td style="font-weight:bold;">자갈치 아지매 생방송 중 2번 마이크 잡음 발생</td>
+                    <td>원인 분석 중
+장비보수 탭 참고</td>
+                    <td>-</td>
+                    <td>-</td>
+                  </tr>
+                
+                  <tr>
+                    <td>2026-09-14</td>
+                    <td style="font-weight:bold;">Radio</td>
+                    <td>이정민</td>
+                    <td style="font-weight:bold;">SFM 모니터&amp;알람 장비(HD B&amp;T BTL-2403)의 NET 채널 오류</td>
+                    <td>예비 모듈로 교체함
+스페어가 몇개 있어 보수 여부는 천천히 판단</td>
+                    <td>-</td>
+                    <td>-</td>
+                  </tr>
+                
+                  <tr>
+                    <td>2026-09-14</td>
+                    <td style="font-weight:bold;">장비보수</td>
+                    <td>이정민</td>
+                    <td style="font-weight:bold;">SFM AMU</td>
+                    <td>[증상] 2번 마이크에서 잡음 발생 | [원인] 마이크, 라인 문제는 아님
+AMU쪽 문제로 추정 | [조치] (9/14)
+현재 콘솔 모듈 1번과 5번 교체 후 추이 파악중
+콘솔 모듈이 아닐 경우, DSP 점검 예정
+
+(9/15)
+잡음 재발생 -&gt; 마이크용 DSP1의 포트1,2번 불량으로 추정 -&gt; 마이크용 DSP1의 포트2번(MIC2)와 DSP2의 포트2(MIC6)읠 결선 변경 후 추이 지켜보기로 함</td>
+                    <td>-</td>
+                    <td>10/1 한서비엠티 조임수 이사 내방 예정
+잡음 개선 위해 근무자(정은혜)가 콘솔의 ADD VIEW를 DARK 누름 -&gt; 화면이 블랙으로 변경 -&gt; 홈버튼 누르니 돌아왔지만 일부 UI 색상 등 변경 -&gt; 시스템 리셋 후 정상</td>
+                  </tr>
+                
+                  <tr>
+                    <td>2026-09-13</td>
+                    <td style="font-weight:bold;">기술연구</td>
+                    <td>이정민</td>
+                    <td style="font-weight:bold;">폐쇄자막 오류(시사포커스 인)</td>
+                    <td>시사포커스 인 시작시 정상 송출했지만, 후반부 8분 40초간 장애인 자막 미송출
+상세사항 경위서 참조</td>
+                    <td>-</td>
+                    <td>-</td>
+                  </tr>
+                
+                  <tr>
+                    <td>2026-09-10</td>
+                    <td style="font-weight:bold;">기술연구</td>
+                    <td>이정민</td>
+                    <td style="font-weight:bold;">폐쇄자막 오류(수상한 다락방)</td>
+                    <td>26년 9월 10일(목) 21시 &#039;수상한다락방&#039; 방송시작 후 3분여간 폐쇄자막 미송출 -&gt; 속기업체에 연락도중 정상화 _-&gt; 아이유노에 메인서버 로그 분석 요청함</td>
+                    <td>-</td>
+                    <td>-</td>
+                  </tr>
+                
+                  <tr>
+                    <td>2026-09-09</td>
+                    <td style="font-weight:bold;">RF</td>
+                    <td>이정민</td>
+                    <td style="font-weight:bold;">UHD 송신기 TX2 Cooling Interface 모듈 오류</td>
+                    <td>장비보수탭 참고</td>
+                    <td>-</td>
+                    <td>-</td>
+                  </tr>
+                
+                  <tr>
+                    <td>2026-09-09</td>
+                    <td style="font-weight:bold;">장비보수</td>
+                    <td>이정민</td>
+                    <td style="font-weight:bold;">UHD 송신기 TX2</td>
+                    <td>[증상] 콘트롤 보드에 있는 Cooling Interface 모듈 오류 | [원인] 장비 동작에는 문제가 없고, 모듈 오류로 센싱 문제로 추정 | [조치] (9.9)
+로데 이보근과 통화
+동일 규격의 DTV 예비품과 교체 -&gt;  안정화 이후 해당 모듈 에러는 없어졌지만 TDU  오류 발생
+송신기 동작에는 문제 없으나, 로데에 장비 점검 요청
+
+(9.17)
+TDU 새제품과 교환 후 정상 동작
+TDU 및 Cooling Interface보드 구매 예정</td>
+                    <td>-</td>
+                    <td>9/17 로데 이보근 내방 예정</td>
+                  </tr>
+                
+                  <tr>
+                    <td>2026-09-01</td>
+                    <td style="font-weight:bold;">RF</td>
+                    <td>이정민</td>
+                    <td style="font-weight:bold;">불모산DMB방송보조국 휴지 기안 완료</td>
+                    <td>2026년 10월 1일부터 1년간 휴지 예정</td>
+                    <td>-</td>
+                    <td>-</td>
+                  </tr>
+                
+              </tbody>
+            </table>
+          
+          </body></html>

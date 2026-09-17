@@ -1,0 +1,1631 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>기술정책부 업무 및 시스템/장비 관리 대시보드</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- SheetJS (Excel 다운로드 및 파싱) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- html2pdf.js (PDF) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-slate-100 text-slate-800 flex flex-col min-h-screen font-sans">
+
+  <!-- ================= 1. 상단 고정 통합 검색 헤더 ================= -->
+  <header class="bg-slate-900 text-white sticky top-0 z-50 shadow-md">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+      
+      <!-- 부서 타이틀 및 서버 상태 -->
+      <div class="flex items-center space-x-3">
+        <div class="p-2 bg-indigo-600 rounded-lg">
+          <i data-lucide="radio-tower" class="w-5 h-5 text-white"></i>
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <h1 class="text-sm font-bold tracking-wide">기술정책부 통합 이력 관리</h1>
+            <!-- 서버 연결 상태 뱃지 -->
+            <span id="server-status-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center space-x-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+              <span>서버 확인 중</span>
+            </span>
+          </div>
+          <p class="text-xs text-slate-400">시스템·방송망·기술연구 포털</p>
+        </div>
+      </div>
+
+      <!-- 상단 연도 키보드 입력/달력 선택 & 키워드 검색 엔진 -->
+      <div class="flex flex-wrap items-center gap-2 bg-slate-800 p-2 rounded-xl border border-slate-700">
+        <!-- 연도 직접 입력 & 드롭다운 지원 -->
+        <div class="flex items-center space-x-1">
+          <span class="text-xs text-slate-400 font-medium">연도</span>
+          <input type="number" id="filter-year-input" min="2000" max="2099" placeholder="YYYY" oninput="handleYearDirectInput()" class="w-16 bg-slate-900 border border-slate-600 rounded-lg text-xs px-2 py-1 text-white outline-none focus:ring-1 focus:ring-indigo-400 font-mono text-center">
+          <select id="filter-year-select" onchange="handleYearSelectChange()" class="bg-slate-900 border border-slate-600 rounded-lg text-xs px-2 py-1 text-white outline-none focus:ring-1 focus:ring-indigo-400">
+            <option value="ALL">전체</option>
+            <option value="2026" selected>2026년</option>
+            <option value="2025">2025년</option>
+            <option value="2024">2024년</option>
+          </select>
+        </div>
+
+        <!-- 마우스 달력 캘린더 선택기 (시작일 ~ 종료일) -->
+        <div class="flex items-center space-x-1">
+          <input type="date" id="filter-start-date" onchange="renderCurrentTab()" class="bg-slate-900 border border-slate-600 rounded-lg text-xs px-2 py-1 text-white outline-none focus:ring-1 focus:ring-indigo-400">
+          <span class="text-slate-500 text-xs">~</span>
+          <input type="date" id="filter-end-date" onchange="renderCurrentTab()" class="bg-slate-900 border border-slate-600 rounded-lg text-xs px-2 py-1 text-white outline-none focus:ring-1 focus:ring-indigo-400">
+        </div>
+
+        <!-- 키워드 실시간 검색창 -->
+        <div class="relative">
+          <input type="text" id="filter-keyword" oninput="renderCurrentTab()" placeholder="제목, 장비명, 작성자, 내용..." class="bg-slate-900 border border-slate-600 rounded-lg text-xs pl-7 pr-3 py-1.5 text-white placeholder-slate-500 outline-none w-44 focus:w-56 transition-all">
+          <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-2 top-2"></i>
+        </div>
+
+        <button onclick="resetFilters()" class="bg-slate-700 hover:bg-slate-600 px-2.5 py-1.5 rounded-lg text-xs font-medium transition">초기화</button>
+      </div>
+
+      <!-- 우측 상단 홈 버튼 (서버 상태 갱신 기능 포함) -->
+      <button onclick="goHome()" class="flex items-center space-x-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow-sm transition" title="초기화면으로 이동하고 서버 연결 상태를 갱신합니다">
+        <i data-lucide="home" class="w-4 h-4"></i>
+        <span>홈 (초기화면)</span>
+      </button>
+    </div>
+
+    <!-- ================= 2. 10개 카테고리 탭 네비게이션 ================= -->
+    <!-- 탭 글자 크기는 기입란(text-xs)보다 약간 큰 text-sm font-bold 적용 -->
+    <div class="bg-slate-800/95 border-t border-slate-700">
+      <div class="max-w-7xl mx-auto px-4 flex space-x-1 overflow-x-auto" id="tab-nav">
+        <button onclick="switchTab('leader')" class="tab-btn py-2.5 px-3.5 text-sm font-bold border-b-2 border-indigo-400 text-indigo-400" data-tab="leader">기술정책부장</button>
+        <button onclick="switchTab('admin')" class="tab-btn py-2.5 px-3.5 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-white" data-tab="admin">행정</button>
+        <button onclick="switchTab('rf')" class="tab-btn py-2.5 px-3.5 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-white" data-tab="rf">RF</button>
+        <button onclick="switchTab('radio')" class="tab-btn py-2.5 px-3.5 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-white" data-tab="radio">Radio</button>
+        <button onclick="switchTab('research')" class="tab-btn py-2.5 px-3.5 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-white" data-tab="research">기술연구</button>
+        <button onclick="switchTab('procurement')" class="tab-btn py-2.5 px-3.5 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-white" data-tab="procurement">장비구매</button>
+        <button onclick="switchTab('maintenance')" class="tab-btn py-2.5 px-3.5 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-white" data-tab="maintenance">장비보수</button>
+        <button onclick="switchTab('etc')" class="tab-btn py-2.5 px-3.5 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-white" data-tab="etc">기타</button>
+        
+        <!-- 이력관리: 글자 옆에 괄호로 아이콘 표시 -->
+        <button onclick="switchTab('history')" class="tab-btn py-2.5 px-3.5 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-white inline-flex items-center space-x-1" data-tab="history">
+          <span>이력관리</span>
+          <span class="text-xs font-normal text-slate-400 flex items-center">(<i data-lucide="history" class="w-3.5 h-3.5 inline mx-0.5"></i>)</span>
+        </button>
+        
+        <!-- 설정: 글자 옆에 괄호로 아이콘 표시 -->
+        <button onclick="switchTab('settings')" class="tab-btn py-2.5 px-3.5 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-white inline-flex items-center space-x-1" data-tab="settings">
+          <span>설정</span>
+          <span class="text-xs font-normal text-slate-400 flex items-center">(<i data-lucide="settings" class="w-3.5 h-3.5 inline mx-0.5"></i>)</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ================= 3. 메인 작업 콘텐츠 뷰 ================= -->
+  <main class="max-w-7xl mx-auto px-4 py-6 flex-1 w-full space-y-6">
+
+    <!-- 상단 요약 바 및 다운로드/업로드 컨트롤 바 -->
+    <div class="flex flex-wrap justify-between items-center bg-white p-4 rounded-xl border border-slate-200 shadow-sm gap-4">
+      <div>
+        <h2 id="view-title" class="text-base font-bold text-slate-900">기술정책부장 업무 이력</h2>
+        <p id="view-subtitle" class="text-xs text-slate-500 mt-0.5">총 0건의 이력이 등록되어 있습니다.</p>
+      </div>
+      
+      <!-- 다운로드 및 업로드 버튼군 -->
+      <div class="flex flex-wrap items-center gap-2" id="export-btn-group">
+        <!-- 현재 탭 단일 다운로드 -->
+        <div class="flex items-center space-x-1 bg-slate-50 p-1.5 rounded-lg border border-slate-200">
+          <span class="text-[11px] font-bold text-slate-500 px-1">현재 탭 다운로드:</span>
+          <button onclick="exportSingleTab('excel')" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-semibold transition">Excel</button>
+          <button onclick="exportSingleTab('pdf')" class="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded text-xs font-semibold transition">PDF</button>
+          <button onclick="exportSingleTab('word')" class="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold transition">Word</button>
+          <button onclick="exportSingleTab('hwp')" class="px-2.5 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded text-xs font-semibold transition">한글</button>
+        </div>
+
+        <!-- 단일/통합 파일 업로드 버튼 (명칭: '파일 업로드') -->
+        <div class="flex items-center bg-amber-50 p-1.5 rounded-lg border border-amber-200">
+          <label class="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-xs font-semibold transition flex items-center space-x-1 cursor-pointer shadow-sm" title="다운로드했던 Excel 파일이나 JSON 파일을 업로드하고 구분 탭을 검토 및 변경합니다">
+            <i data-lucide="upload" class="w-3.5 h-3.5"></i>
+            <span>파일 업로드</span>
+            <input type="file" id="import-data-file" accept=".xlsx, .xls, .json" onchange="handleFileUpload(event)" class="hidden">
+          </label>
+        </div>
+
+        <!-- 전체 탭 통합 집계 다운로드 (날짜별/주간별/월별) -->
+        <div class="flex items-center space-x-1.5 bg-indigo-50 p-1.5 rounded-lg border border-indigo-200">
+          <span class="text-[11px] font-bold text-indigo-900 flex items-center space-x-1">
+            <i data-lucide="layers" class="w-3.5 h-3.5"></i>
+            <span>전체 통합 다운로드:</span>
+          </span>
+          <select id="aggregate-mode" class="text-xs border border-indigo-300 rounded px-1.5 py-1 bg-white outline-none font-medium">
+            <option value="daily">날짜별 집계</option>
+            <option value="weekly">주간별(월~일)</option>
+            <option value="monthly">월별 집계</option>
+          </select>
+          <button onclick="exportAggregated('excel')" class="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-semibold transition">Excel</button>
+          <button onclick="exportAggregated('pdf')" class="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-semibold transition">PDF</button>
+          <button onclick="exportAggregated('word')" class="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-semibold transition">Word</button>
+          <button onclick="exportAggregated('hwp')" class="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-semibold transition">한글</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 신규 기입 및 수정 폼 컨테이너 (이력관리 및 설정 탭에서는 숨김) -->
+    <div id="form-container" class="bg-white rounded-xl border border-slate-200 shadow-sm p-6"></div>
+
+    <!-- [이력관리 탭 전용] 각 탭 선택 체크박스 컨트롤 바 -->
+    <div id="history-filter-container" class="hidden bg-white rounded-xl border border-indigo-100 shadow-sm p-4 space-y-2">
+      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
+        <span class="text-xs font-bold text-indigo-900 flex items-center space-x-1.5">
+          <i data-lucide="filter" class="w-4 h-4 text-indigo-600"></i>
+          <span>카테고리별 조회 선택 (체크박스)</span>
+        </span>
+        <div class="flex items-center space-x-2">
+          <button onclick="toggleAllHistoryCheckboxes(true)" class="text-[11px] font-semibold text-indigo-600 hover:underline">모두 선택</button>
+          <span class="text-slate-300">|</span>
+          <button onclick="toggleAllHistoryCheckboxes(false)" class="text-[11px] font-semibold text-slate-500 hover:underline">모두 해제</button>
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-4 pt-1 text-xs" id="history-checkbox-list">
+        <label class="inline-flex items-center space-x-1.5 cursor-pointer">
+          <input type="checkbox" value="leader" checked onchange="renderCurrentTab()" class="history-tab-cb rounded text-indigo-600 focus:ring-indigo-500">
+          <span class="font-medium text-slate-700">기술정책부장</span>
+        </label>
+        <label class="inline-flex items-center space-x-1.5 cursor-pointer">
+          <input type="checkbox" value="admin" checked onchange="renderCurrentTab()" class="history-tab-cb rounded text-indigo-600 focus:ring-indigo-500">
+          <span class="font-medium text-slate-700">행정</span>
+        </label>
+        <label class="inline-flex items-center space-x-1.5 cursor-pointer">
+          <input type="checkbox" value="rf" checked onchange="renderCurrentTab()" class="history-tab-cb rounded text-indigo-600 focus:ring-indigo-500">
+          <span class="font-medium text-slate-700">RF</span>
+        </label>
+        <label class="inline-flex items-center space-x-1.5 cursor-pointer">
+          <input type="checkbox" value="radio" checked onchange="renderCurrentTab()" class="history-tab-cb rounded text-indigo-600 focus:ring-indigo-500">
+          <span class="font-medium text-slate-700">Radio</span>
+        </label>
+        <label class="inline-flex items-center space-x-1.5 cursor-pointer">
+          <input type="checkbox" value="research" checked onchange="renderCurrentTab()" class="history-tab-cb rounded text-indigo-600 focus:ring-indigo-500">
+          <span class="font-medium text-slate-700">기술연구</span>
+        </label>
+        <label class="inline-flex items-center space-x-1.5 cursor-pointer">
+          <input type="checkbox" value="procurement" checked onchange="renderCurrentTab()" class="history-tab-cb rounded text-indigo-600 focus:ring-indigo-500">
+          <span class="font-medium text-slate-700">장비구매</span>
+        </label>
+        <label class="inline-flex items-center space-x-1.5 cursor-pointer">
+          <input type="checkbox" value="maintenance" checked onchange="renderCurrentTab()" class="history-tab-cb rounded text-indigo-600 focus:ring-indigo-500">
+          <span class="font-medium text-slate-700">장비보수</span>
+        </label>
+        <label class="inline-flex items-center space-x-1.5 cursor-pointer">
+          <input type="checkbox" value="etc" checked onchange="renderCurrentTab()" class="history-tab-cb rounded text-indigo-600 focus:ring-indigo-500">
+          <span class="font-medium text-slate-700">기타</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- 하단 업무 이력 목록 뷰 (스크롤 컨테이너) -->
+    <div id="print-capture-area" class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+      <div class="bg-slate-50 px-4 py-3 border-b border-slate-200 flex flex-wrap justify-between items-center gap-2 print:hidden flex-shrink-0">
+        <div class="flex items-center space-x-2">
+          <span class="text-sm font-bold text-slate-800" id="table-badge-title">업무 이력 대장</span>
+          <span class="text-xs bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full font-semibold" id="table-row-count">0건</span>
+        </div>
+        <div class="text-[11px] text-slate-400">
+          * 리스트가 많을 경우 아래 스크롤을 이용하세요. 각 행 우측의 수정(<i data-lucide="edit-3" class="w-3 h-3 inline"></i>) 및 삭제(<i data-lucide="trash-2" class="w-3 h-3 inline"></i>)가 가능합니다.
+        </div>
+      </div>
+
+      <!-- 이력대장 스크롤 컨테이너 (고정 높이 및 세로 스크롤) -->
+      <div class="overflow-x-auto max-h-[500px] overflow-y-auto" id="table-scroll-container">
+        <table class="w-full text-left text-xs border-collapse relative" id="data-table">
+          <thead id="table-head" class="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase sticky top-0 z-10 shadow-sm"></thead>
+          <tbody id="table-body" class="divide-y divide-slate-100 text-slate-700"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 설정 탭 패널 -->
+    <div id="settings-panel" class="hidden bg-white p-6 rounded-xl border border-slate-200 shadow-sm max-w-3xl space-y-6">
+      <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+        <div>
+          <h2 class="text-base font-bold text-slate-800">스토리지 및 카카오 알림 설정</h2>
+          <p class="text-xs text-slate-500 mt-0.5">로컬/NAS 폴더 경로, 첨부문서 저장소, 카카오톡 알림을 설정하고 프리셋 파일로 보관합니다.</p>
+        </div>
+        <div class="flex space-x-2">
+          <button onclick="downloadPresetFile()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition flex items-center space-x-1">
+            <i data-lucide="download" class="w-3.5 h-3.5"></i><span>프리셋 내보내기</span>
+          </button>
+          <label class="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold rounded-lg transition flex items-center space-x-1 cursor-pointer">
+            <i data-lucide="upload" class="w-3.5 h-3.5"></i><span>프리셋 불러오기</span>
+            <input type="file" id="preset-file-input" accept=".json" onchange="importPresetFile(event)" class="hidden">
+          </label>
+        </div>
+      </div>
+
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">프리셋 명칭</label>
+          <input type="text" id="cfg-preset-name" placeholder="예: 황령산 송신소 운영 프리셋" class="w-full border border-slate-300 rounded-lg p-2.5 text-xs outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">NAS 스토리지 대상 폴더 경로 (동기화용)</label>
+          <input type="text" id="cfg-nas-path" placeholder="예: Z:\기술정책부_데이터 또는 C:/TechDept/NAS_Sync" class="w-full border border-slate-300 rounded-lg p-2.5 text-xs outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">첨부문서 전용 저장 폴더 경로</label>
+          <input type="text" id="cfg-attachment-path" placeholder="C:/git-work/system_maintenance_history/uploads" class="w-full border border-slate-300 rounded-lg p-2.5 text-xs outline-none focus:ring-2 focus:ring-indigo-500">
+          <p class="text-[11px] text-slate-400 mt-1">* 예: C:/git-work/system_maintenance_history/uploads (슬래시 또는 역슬래시 모두 가능)</p>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">서버 로컬 자동 보관 디렉토리</label>
+          <input type="text" id="cfg-local-path" placeholder="./local_exports" class="w-full border border-slate-300 rounded-lg p-2.5 text-xs outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">카카오톡 사용자 액세스 토큰 (나에게 보내기)</label>
+          <input type="text" id="cfg-kakao-token" placeholder="카카오 디벨로퍼스 REST API talk_message 권한 토큰" class="w-full border border-slate-300 rounded-lg p-2.5 text-xs outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+      </div>
+
+      <button onclick="saveConfigSettings()" class="bg-slate-900 hover:bg-slate-800 text-white px-5 py-2 rounded-lg text-xs font-bold transition">설정 저장</button>
+    </div>
+
+    <!-- 통합 집계 인쇄용 숨김 영역 -->
+    <div id="aggregated-print-area" class="hidden bg-white p-6 rounded-xl border border-slate-200"></div>
+
+    <!-- 업로드 탭 재분류 모달 -->
+    <div id="upload-preview-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+      <div class="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-200">
+        <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-indigo-50/50 rounded-t-2xl">
+          <div>
+            <h3 class="text-base font-bold text-slate-800 flex items-center space-x-2">
+              <i data-lucide="file-spreadsheet" class="w-5 h-5 text-indigo-600"></i>
+              <span>업로드 파일 이력 검토 및 구분 탭 변경</span>
+            </h3>
+            <p class="text-xs text-slate-500 mt-0.5">업로드된 이력의 카테고리(탭)를 확인하고 필요 시 변경하여 적용합니다.</p>
+          </div>
+          <button onclick="closeUploadModal()" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+
+        <div class="p-6 overflow-y-auto flex-1 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+            <div class="flex items-center space-x-2">
+              <span class="text-xs font-bold text-slate-700">전체 항목 구분 일괄 변경:</span>
+              <select id="modal-bulk-tab-select" class="text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 bg-white font-medium outline-none focus:ring-2 focus:ring-indigo-500">
+                <option value="">(개별 유지)</option>
+                <option value="leader">기술정책부장</option>
+                <option value="admin">행정</option>
+                <option value="rf">RF</option>
+                <option value="radio">Radio</option>
+                <option value="research">기술연구</option>
+                <option value="procurement">장비구매</option>
+                <option value="maintenance">장비보수</option>
+                <option value="etc">기타</option>
+              </select>
+              <button onclick="applyBulkTabChange()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold transition">일괄 적용</button>
+            </div>
+            <span class="text-xs text-indigo-600 font-semibold" id="modal-total-count">총 0건 검토 대기</span>
+          </div>
+
+          <div class="overflow-x-auto border border-slate-200 rounded-xl max-h-[400px] overflow-y-auto">
+            <table class="w-full text-left text-xs border-collapse">
+              <thead class="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 sticky top-0 z-10">
+                <tr>
+                  <th class="py-2.5 px-3 w-32">구분 탭 변경</th>
+                  <th class="py-2.5 px-3 w-24">일자</th>
+                  <th class="py-2.5 px-3 w-20">작성자</th>
+                  <th class="py-2.5 px-3 w-40">제목 / 시스템장비명</th>
+                  <th class="py-2.5 px-3">상세 기록 / 조치내역</th>
+                  <th class="py-2.5 px-3 w-28">기타사항</th>
+                </tr>
+              </thead>
+              <tbody id="modal-preview-tbody" class="divide-y divide-slate-100 text-slate-700"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="px-6 py-4 border-t border-slate-100 flex justify-end space-x-2 bg-slate-50/50 rounded-b-2xl">
+          <button onclick="closeUploadModal()" class="px-4 py-2 border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-bold transition">취소</button>
+          <button onclick="confirmUploadAndSave()" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition flex items-center space-x-1.5 shadow-sm">
+            <i data-lucide="check" class="w-4 h-4"></i>
+            <span>최종 확인 및 대시보드 반영</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    const API_BASE = "http://localhost:8000/api";
+    let activeTab = "leader";
+    let editingId = null;
+    let pendingUploadItems = [];
+    
+    // 첨부문서 상태 변수
+    let selectedAttachmentFile = null;
+    let currentAttachedFileName = "";
+
+    let allRecords = {
+      leader: [], admin: [], rf: [], radio: [], research: [], procurement: [], maintenance: [], etc: []
+    };
+
+    const TAB_NAMES = {
+      leader: "기술정책부장", admin: "행정", rf: "RF", radio: "Radio", research: "기술연구",
+      procurement: "장비구매", maintenance: "장비보수", etc: "기타",
+      history: "이력관리", settings: "설정"
+    };
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      lucide.createIcons();
+      initDefaultDates();
+      await checkServerHealth(); // 초기 서버 상태 점검
+      await loadBackendConfig();
+      await fetchAllData();
+      switchTab('leader');
+    });
+
+    // 서버 연결 상태 헬스체크 함수
+    async function checkServerHealth() {
+      const badge = document.getElementById('server-status-badge');
+      try {
+        const res = await fetch(`${API_BASE}/health`);
+        if (res.ok) {
+          badge.className = "px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center space-x-1";
+          badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span><span>서버 정상 연결</span>`;
+        } else {
+          throw new Error();
+        }
+      } catch (err) {
+        badge.className = "px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center space-x-1";
+        badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-rose-400 animate-ping"></span><span>서버 꺼짐 (연결 거부)</span>`;
+      }
+    }
+
+    function initDefaultDates() {
+      const today = new Date().toISOString().split('T')[0];
+      const curYear = today.split('-')[0];
+      document.getElementById('filter-year-input').value = curYear;
+      document.getElementById('filter-year-select').value = curYear;
+      document.getElementById('filter-start-date').value = `${curYear}-01-01`;
+      document.getElementById('filter-end-date').value = today;
+    }
+
+    function handleYearDirectInput() {
+      const yr = document.getElementById('filter-year-input').value.trim();
+      if (yr.length === 4) {
+        document.getElementById('filter-start-date').value = `${yr}-01-01`;
+        document.getElementById('filter-end-date').value = `${yr}-12-31`;
+        document.getElementById('filter-year-select').value = yr;
+        renderCurrentTab();
+      }
+    }
+
+    function handleYearSelectChange() {
+      const yr = document.getElementById('filter-year-select').value;
+      if (yr !== 'ALL') {
+        document.getElementById('filter-year-input').value = yr;
+        document.getElementById('filter-start-date').value = `${yr}-01-01`;
+        document.getElementById('filter-end-date').value = `${yr}-12-31`;
+      } else {
+        document.getElementById('filter-year-input').value = '';
+        document.getElementById('filter-start-date').value = '';
+        document.getElementById('filter-end-date').value = '';
+      }
+      renderCurrentTab();
+    }
+
+    function resetFilters() {
+      initDefaultDates();
+      document.getElementById('filter-keyword').value = '';
+      renderCurrentTab();
+    }
+
+    // 홈 버튼: 초기화면 복귀 및 서버 연결 상태 실시간 재확인/갱신
+    async function goHome() {
+      resetFilters();
+      switchTab('leader');
+      await checkServerHealth(); // 홈버튼 클릭 시 연결 상태 즉각 갱신
+    }
+
+    function resetInputForm() {
+      editingId = null;
+      selectedAttachmentFile = null;
+      currentAttachedFileName = "";
+      buildFormUI();
+    }
+
+    async function fetchAllData() {
+      try {
+        const res = await fetch(`${API_BASE}/records`);
+        if (res.ok) {
+          allRecords = await res.json();
+        }
+      } catch (e) {
+        console.warn("API 미연결 - 브라우저 로컬 저장소 모드 작동");
+        const cached = localStorage.getItem('tech_records_storage_live');
+        if (cached) allRecords = JSON.parse(cached);
+      }
+      renderCurrentTab();
+    }
+
+    function switchTab(tabKey) {
+      activeTab = tabKey;
+      editingId = null;
+      selectedAttachmentFile = null;
+      currentAttachedFileName = "";
+
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        if (btn.dataset.tab === tabKey) {
+          btn.className = "tab-btn py-2.5 px-3.5 text-sm font-bold border-b-2 border-indigo-400 text-indigo-400 inline-flex items-center space-x-1";
+        } else {
+          btn.className = "tab-btn py-2.5 px-3.5 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-white inline-flex items-center space-x-1";
+        }
+      });
+
+      const isSettings = tabKey === 'settings';
+      const isHistory = tabKey === 'history';
+
+      document.getElementById('settings-panel').classList.toggle('hidden', !isSettings);
+      document.getElementById('form-container').classList.toggle('hidden', isSettings || isHistory);
+      document.getElementById('history-filter-container').classList.toggle('hidden', !isHistory);
+      document.getElementById('print-capture-area').classList.toggle('hidden', isSettings);
+      document.getElementById('export-btn-group').classList.toggle('hidden', isSettings);
+
+      document.getElementById('view-title').innerText = `${TAB_NAMES[tabKey]} 업무 이력`;
+      document.getElementById('table-badge-title').innerText = `${TAB_NAMES[tabKey]} 이력 대장`;
+
+      if (!isSettings && !isHistory) {
+        buildFormUI();
+      }
+      renderCurrentTab();
+      lucide.createIcons();
+    }
+
+    function toggleAllHistoryCheckboxes(checked) {
+      document.querySelectorAll('.history-tab-cb').forEach(cb => cb.checked = checked);
+      renderCurrentTab();
+    }
+
+    // 첨부문서 파일 선택 시 (파일 객체를 메모리에 보관)
+    function handleAttachmentSelect(event) {
+      const file = event.target.files[0];
+      if (file) {
+        selectedAttachmentFile = file;
+        currentAttachedFileName = file.name;
+        document.getElementById('attachment-label').innerText = `선택됨: ${file.name}`;
+        document.getElementById('attachment-clear-btn').classList.remove('hidden');
+      }
+    }
+
+    // 폼 기입 중 선택한 첨부문서 취소
+    function clearFormAttachment() {
+      selectedAttachmentFile = null;
+      currentAttachedFileName = "";
+      const input = document.getElementById('f-attachment-input');
+      if (input) input.value = "";
+      document.getElementById('attachment-label').innerText = "선택된 파일 없음";
+      document.getElementById('attachment-clear-btn').classList.add('hidden');
+    }
+
+    // 첨부문서 열람 및 다운로드 핸들러
+    async function openAttachment(filename) {
+      if (!filename) return;
+      
+      try {
+        const testRes = await fetch(`${API_BASE}/health`);
+        if (!testRes.ok) throw new Error();
+      } catch (e) {
+        alert("백엔드 서버(server.py)가 실행 중이지 않습니다.\n터미널에서 'python server.py'를 먼저 실행해 주세요!");
+        return;
+      }
+
+      const targetUrl = `${API_BASE}/attachments/${encodeURIComponent(filename)}`;
+      window.open(targetUrl, '_blank');
+    }
+
+    // 첨부문서 단독 삭제 함수
+    async function deleteAttachmentOnly(tabKey, recordId, filename) {
+      if (!confirm(`첨부문서 [${filename}] 파일을 완전히 삭제하시겠습니까?`)) return;
+
+      try {
+        await fetch(`${API_BASE}/attachments/${encodeURIComponent(filename)}`, {
+          method: 'DELETE'
+        });
+      } catch (e) {
+        console.warn('서버 파일 삭제 요청 실패 또는 오프라인 모드');
+      }
+
+      const dataset = allRecords[tabKey] || [];
+      const item = dataset.find(r => r.id === recordId);
+      if (item) {
+        item.attachment = "";
+        try {
+          await fetch(`${API_BASE}/records`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ tab: tabKey, data: item })
+          });
+          await fetchAllData();
+        } catch (err) {
+          localStorage.setItem('tech_records_storage_live', JSON.stringify(allRecords));
+          renderCurrentTab();
+        }
+        alert('첨부문서가 성공적으로 삭제되었습니다.');
+      }
+    }
+
+    // 신규 등록 / 수정 폼 렌더링
+    function buildFormUI(existingItem = null) {
+      const container = document.getElementById('form-container');
+      const isMaint = activeTab === 'maintenance';
+      const isEditing = Boolean(existingItem);
+      editingId = existingItem ? existingItem.id : null;
+      selectedAttachmentFile = null;
+      currentAttachedFileName = existingItem ? (existingItem.attachment || "") : "";
+
+      const titleText = isEditing 
+        ? `${TAB_NAMES[activeTab]} 이력 수정` 
+        : `${TAB_NAMES[activeTab]} 이력 신규 기입`;
+
+      let fieldsHtml = '';
+
+      if (isMaint) {
+        fieldsHtml = `
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">작업 일자 *</label>
+            <input type="date" id="f-date" required value="${existingItem ? existingItem.date : ''}" class="w-full text-xs border border-slate-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">작성자 *</label>
+            <input type="text" id="f-author" required placeholder="작성자 성명" value="${existingItem ? escapeHtml(existingItem.author) : ''}" class="w-full text-xs border border-slate-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">시스템 / 장비명 *</label>
+            <input type="text" id="f-equip" required placeholder="예: 황령산 송신소 FM 1kW 송신기" value="${existingItem ? escapeHtml(existingItem.equipment_name) : ''}" class="w-full text-xs border border-slate-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">증상 *</label>
+            <textarea id="f-symptom" rows="2" required placeholder="발생한 이상 증상 및 경보 내용" class="w-full text-xs border border-slate-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-indigo-500">${existingItem ? escapeHtml(existingItem.symptom) : ''}</textarea>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">원인 *</label>
+            <textarea id="f-cause" rows="2" required placeholder="점검 결과 파악된 원인" class="w-full text-xs border border-slate-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-indigo-500">${existingItem ? escapeHtml(existingItem.cause) : ''}</textarea>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">조치 내역 *</label>
+            <textarea id="f-action" rows="2" required placeholder="부품 교체 및 복구 조치 내역" class="w-full text-xs border border-slate-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-indigo-500">${existingItem ? escapeHtml(existingItem.action_taken) : ''}</textarea>
+          </div>
+          <div class="md:col-span-2">
+            <label class="block text-xs font-bold text-slate-600 mb-1">기타사항</label>
+            <textarea id="f-notes" rows="1" placeholder="예비품 잔여 수량, 특이사항 등" class="w-full text-xs border border-slate-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-indigo-500">${existingItem ? escapeHtml(existingItem.notes || '') : ''}</textarea>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">첨부문서 업로드</label>
+            <div class="flex items-center space-x-2">
+              <label class="cursor-pointer px-3 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg text-xs font-medium text-slate-700 flex items-center space-x-1 shadow-sm">
+                <i data-lucide="paperclip" class="w-3.5 h-3.5"></i>
+                <span>파일 선택</span>
+                <input type="file" id="f-attachment-input" onchange="handleAttachmentSelect(event)" class="hidden">
+              </label>
+              <span id="attachment-label" class="text-xs text-slate-500 truncate max-w-[130px]">${currentAttachedFileName ? '선택됨: ' + currentAttachedFileName : '선택된 파일 없음'}</span>
+              <button type="button" id="attachment-clear-btn" onclick="clearFormAttachment()" class="${currentAttachedFileName ? '' : 'hidden'} text-rose-500 hover:text-rose-700 p-1" title="첨부문서 취소">
+                <i data-lucide="x-circle" class="w-4 h-4"></i>
+              </button>
+            </div>
+          </div>
+        `;
+      } else {
+        fieldsHtml = `
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">날짜 *</label>
+            <input type="date" id="f-date" required value="${existingItem ? existingItem.date : ''}" class="w-full text-xs border border-slate-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">작성자 *</label>
+            <input type="text" id="f-author" required placeholder="작성자 성명" value="${existingItem ? escapeHtml(existingItem.author) : ''}" class="w-full text-xs border border-slate-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">제목 *</label>
+            <input type="text" id="f-title" required placeholder="업무 건명 및 과제명" value="${existingItem ? escapeHtml(existingItem.title) : ''}" class="w-full text-xs border border-slate-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+          <div class="md:col-span-2">
+            <label class="block text-xs font-bold text-slate-600 mb-1">업무기록 *</label>
+            <textarea id="f-worklog" rows="2" required placeholder="수행한 세부 업무 및 검토 사항 기록" class="w-full text-xs border border-slate-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-indigo-500">${existingItem ? escapeHtml(existingItem.work_log) : ''}</textarea>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">기타사항</label>
+            <textarea id="f-notes" rows="2" placeholder="관련 공문 번호, 비고 등" class="w-full text-xs border border-slate-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-indigo-500">${existingItem ? escapeHtml(existingItem.notes || '') : ''}</textarea>
+          </div>
+          <div class="md:col-span-3 pt-1">
+            <label class="block text-xs font-bold text-slate-600 mb-1">첨부문서 업로드</label>
+            <div class="flex items-center space-x-2">
+              <label class="cursor-pointer px-3 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg text-xs font-medium text-slate-700 flex items-center space-x-1 shadow-sm">
+                <i data-lucide="paperclip" class="w-3.5 h-3.5"></i>
+                <span>파일 선택</span>
+                <input type="file" id="f-attachment-input" onchange="handleAttachmentSelect(event)" class="hidden">
+              </label>
+              <span id="attachment-label" class="text-xs text-slate-500 truncate max-w-[250px]">${currentAttachedFileName ? '선택됨: ' + currentAttachedFileName : '선택된 파일 없음'}</span>
+              <button type="button" id="attachment-clear-btn" onclick="clearFormAttachment()" class="${currentAttachedFileName ? '' : 'hidden'} text-rose-500 hover:text-rose-700 p-1" title="첨부문서 취소">
+                <i data-lucide="x-circle" class="w-4 h-4"></i>
+              </button>
+            </div>
+          </div>
+        `;
+      }
+
+      container.innerHTML = `
+        <div class="flex justify-between items-center border-b border-slate-100 pb-3 mb-4">
+          <h3 class="text-sm font-bold text-slate-800 flex items-center space-x-2">
+            <i data-lucide="${isEditing ? 'edit' : 'plus-circle'}" class="w-4 h-4 text-indigo-600"></i>
+            <span>${titleText}</span>
+          </h3>
+          ${isEditing ? `
+            <button type="button" onclick="buildFormUI()" class="text-xs text-slate-500 hover:text-slate-800 font-medium">
+              수정 취소하고 새로 등록
+            </button>
+          ` : ''}
+        </div>
+        <form onsubmit="handleFormSubmit(event)" class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          ${fieldsHtml}
+          <div class="md:col-span-3 flex justify-end items-center space-x-2 pt-2 border-t border-slate-100">
+            <!-- '이력 저장' 바로 옆에 위치한 '입력 상태 초기화' 버튼 -->
+            <button type="button" onclick="resetInputForm()" class="px-4 py-2 border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-bold transition flex items-center space-x-1 shadow-sm" title="기입된 내용을 비웁니다">
+              <i data-lucide="rotate-ccw" class="w-3.5 h-3.5 text-slate-500"></i>
+              <span>입력 상태 초기화</span>
+            </button>
+
+            ${isEditing ? `
+              <button type="button" onclick="buildFormUI()" class="px-4 py-2 border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-bold transition">취소</button>
+            ` : ''}
+
+            <!-- 이력 저장 버튼 -->
+            <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-lg text-xs font-bold shadow-sm transition flex items-center space-x-1.5">
+              <i data-lucide="save" class="w-3.5 h-3.5"></i>
+              <span>${isEditing ? '수정 내용 저장' : '이력 저장'}</span>
+            </button>
+          </div>
+        </form>
+      `;
+
+      if (!existingItem) {
+        document.getElementById('f-date').valueAsDate = new Date();
+      }
+      lucide.createIcons();
+    }
+
+    // 폼 제출 핸들러 (실제 파일 전송 후 레코드 저장 동기화)
+    async function handleFormSubmit(e) {
+      e.preventDefault();
+      const isMaint = activeTab === 'maintenance';
+      const dateVal = document.getElementById('f-date').value;
+
+      let finalAttachmentName = currentAttachedFileName || "";
+
+      // 사용자가 새로 선택한 실제 파일이 있다면 백엔드로 전송
+      if (selectedAttachmentFile) {
+        try {
+          const formData = new FormData();
+          formData.append("file", selectedAttachmentFile);
+
+          const res = await fetch(`${API_BASE}/upload-attachment`, {
+            method: "POST",
+            body: formData
+          });
+
+          if (res.ok) {
+            const uploadRes = await res.json();
+            finalAttachmentName = uploadRes.filename;
+            console.log("[+] 파일 업로드 성공:", uploadRes.saved_path);
+          } else {
+            alert("서버 저장 실패: 폴더 접근 권한을 확인하세요.");
+          }
+        } catch (err) {
+          alert("백엔드 서버(server.py)가 실행 중이지 않아 로컬 폴더에 파일이 저장되지 못했습니다.");
+        }
+      }
+
+      let entryData = {
+        date: dateVal,
+        author: document.getElementById('f-author').value.trim(),
+        attachment: finalAttachmentName,
+        id: editingId || null
+      };
+
+      if (isMaint) {
+        entryData.equipment_name = document.getElementById('f-equip').value.trim();
+        entryData.symptom = document.getElementById('f-symptom').value.trim();
+        entryData.cause = document.getElementById('f-cause').value.trim();
+        entryData.action_taken = document.getElementById('f-action').value.trim();
+        entryData.notes = document.getElementById('f-notes').value.trim();
+      } else {
+        entryData.title = document.getElementById('f-title').value.trim();
+        entryData.work_log = document.getElementById('f-worklog').value.trim();
+        entryData.notes = document.getElementById('f-notes').value.trim();
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}/records`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ tab: activeTab, data: entryData })
+        });
+        if (res.ok) await fetchAllData();
+      } catch (err) {
+        if (!allRecords[activeTab]) allRecords[activeTab] = [];
+        if (editingId) {
+          const idx = allRecords[activeTab].findIndex(r => r.id === editingId);
+          if (idx !== -1) allRecords[activeTab][idx] = entryData;
+        } else {
+          entryData.id = Date.now().toString();
+          allRecords[activeTab].unshift(entryData);
+        }
+        localStorage.setItem('tech_records_storage_live', JSON.stringify(allRecords));
+        renderCurrentTab();
+      }
+
+      selectedAttachmentFile = null;
+      currentAttachedFileName = "";
+      buildFormUI();
+    }
+
+    function editRecord(tabKey, id) {
+      if (activeTab === 'history') {
+        switchTab(tabKey);
+      }
+      const dataset = allRecords[tabKey] || [];
+      const item = dataset.find(r => r.id === id);
+      if (item) {
+        buildFormUI(item);
+        window.scrollTo({ top: 120, behavior: 'smooth' });
+      }
+    }
+
+    async function deleteRecord(tabKey, id) {
+      if (!confirm('정말로 이 이력을 삭제하시겠습니까?')) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/records?tab=${tabKey}&id=${id}`, {
+          method: 'DELETE'
+        });
+        if (res.ok) await fetchAllData();
+      } catch (err) {
+        allRecords[tabKey] = (allRecords[tabKey] || []).filter(r => r.id !== id);
+        localStorage.setItem('tech_records_storage_live', JSON.stringify(allRecords));
+        renderCurrentTab();
+      }
+    }
+
+    // 파일 업로드 모달 파싱 로직
+    function handleFileUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const fileName = file.name.toLowerCase();
+      const reader = new FileReader();
+
+      if (fileName.endsWith('.json')) {
+        reader.onload = (e) => {
+          try {
+            const parsed = JSON.parse(e.target.result);
+            pendingUploadItems = [];
+
+            if (Array.isArray(parsed)) {
+              parsed.forEach(it => {
+                pendingUploadItems.push({
+                  assignedTab: activeTab === 'history' ? 'leader' : activeTab,
+                  record: normalizeRecord(it)
+                });
+              });
+            } else if (typeof parsed === 'object') {
+              for (const tk of Object.keys(parsed)) {
+                if (Array.isArray(parsed[tk])) {
+                  parsed[tk].forEach(it => {
+                    pendingUploadItems.push({
+                      assignedTab: tk,
+                      record: normalizeRecord(it)
+                    });
+                  });
+                }
+              }
+            }
+            openUploadModal();
+          } catch (err) {
+            alert('JSON 파일 형식이 올바르지 않습니다.');
+          }
+        };
+        reader.readAsText(file);
+      } 
+      else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+        reader.onload = (e) => {
+          try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            pendingUploadItems = [];
+
+            workbook.SheetNames.forEach(sheetName => {
+              const worksheet = workbook.Sheets[sheetName];
+              const rows = XLSX.utils.sheet_to_json(worksheet);
+
+              let initialTab = activeTab === 'history' ? 'leader' : activeTab;
+              for (const [k, v] of Object.entries(TAB_NAMES)) {
+                if (sheetName.includes(v)) {
+                  initialTab = k;
+                  break;
+                }
+              }
+
+              rows.forEach(r => {
+                let rowTab = initialTab;
+                if (r['구분(탭)']) {
+                  for (const [k, v] of Object.entries(TAB_NAMES)) {
+                    if (r['구분(탭)'].includes(v)) {
+                      rowTab = k;
+                      break;
+                    }
+                  }
+                }
+
+                pendingUploadItems.push({
+                  assignedTab: rowTab,
+                  record: normalizeRecord(r)
+                });
+              });
+            });
+
+            if (pendingUploadItems.length === 0) {
+              alert('엑셀 파일에 유효한 데이터가 없습니다.');
+              return;
+            }
+
+            openUploadModal();
+          } catch (err) {
+            alert('엑셀 파일을 읽는 중 오류가 발생했습니다.');
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      }
+
+      event.target.value = '';
+    }
+
+    function normalizeRecord(r) {
+      return {
+        date: r['일자'] || r['날짜'] || r.date || new Date().toISOString().slice(0, 10),
+        author: r['작성자'] || r.author || '업로드',
+        title: r['제목'] || r['제목/장비명'] || r['장비명'] || r['장비/시스템명'] || r.title || r.equipment_name || '-',
+        work_log: r['업무기록'] || r['업무/조치내용'] || r['조치내역'] || r['증상'] || r.work_log || r.action_taken || '-',
+        notes: r['기타사항'] || r['기타'] || r.notes || '',
+        attachment: r['첨부문서'] || r['첨부파일'] || r.attachment || '',
+        symptom: r['증상'] || r.symptom || '',
+        cause: r['원인'] || r.cause || '',
+        action_taken: r['조치내역'] || r.action_taken || '',
+        equipment_name: r['장비명'] || r['장비/시스템명'] || r.equipment_name || ''
+      };
+    }
+
+    function openUploadModal() {
+      const modal = document.getElementById('upload-preview-modal');
+      const tbody = document.getElementById('modal-preview-tbody');
+      tbody.innerHTML = '';
+
+      document.getElementById('modal-total-count').innerText = `총 ${pendingUploadItems.length}건 검토 대기`;
+
+      pendingUploadItems.forEach((item, idx) => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-50 transition border-b border-slate-100";
+
+        let selectHtml = `<select onchange="changeItemTab(${idx}, this.value)" class="border border-slate-300 rounded px-2 py-1 text-xs bg-white font-semibold outline-none focus:ring-1 focus:ring-indigo-500">`;
+        ['leader', 'admin', 'rf', 'radio', 'research', 'procurement', 'maintenance', 'etc'].forEach(tk => {
+          selectHtml += `<option value="${tk}" ${item.assignedTab === tk ? 'selected' : ''}>${TAB_NAMES[tk]}</option>`;
+        });
+        selectHtml += `</select>`;
+
+        tr.innerHTML = `
+          <td class="py-2 px-3 whitespace-nowrap">${selectHtml}</td>
+          <td class="py-2 px-3 font-mono text-slate-500 whitespace-nowrap">${item.record.date}</td>
+          <td class="py-2 px-3 font-semibold text-slate-700 whitespace-nowrap">${escapeHtml(item.record.author)}</td>
+          <td class="py-2 px-3 font-bold text-slate-900">${escapeHtml(item.record.title)}</td>
+          <td class="py-2 px-3 whitespace-pre-wrap text-slate-600">${escapeHtml(item.record.work_log)}</td>
+          <td class="py-2 px-3 text-slate-500">${escapeHtml(item.record.notes)}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      modal.classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function closeUploadModal() {
+      document.getElementById('upload-preview-modal').classList.add('hidden');
+      pendingUploadItems = [];
+    }
+
+    function changeItemTab(index, newTab) {
+      if (pendingUploadItems[index]) {
+        pendingUploadItems[index].assignedTab = newTab;
+      }
+    }
+
+    function applyBulkTabChange() {
+      const targetTab = document.getElementById('modal-bulk-tab-select').value;
+      if (!targetTab) return;
+
+      pendingUploadItems.forEach(item => {
+        item.assignedTab = targetTab;
+      });
+      openUploadModal();
+    }
+
+    async function confirmUploadAndSave() {
+      if (pendingUploadItems.length === 0) return;
+
+      const payloadItems = pendingUploadItems.map(it => {
+        const isMaint = it.assignedTab === 'maintenance';
+        let rec = {
+          date: it.record.date,
+          author: it.record.author,
+          notes: it.record.notes,
+          attachment: it.record.attachment || ""
+        };
+
+        if (isMaint) {
+          rec.equipment_name = it.record.equipment_name || it.record.title;
+          rec.symptom = it.record.symptom || it.record.work_log;
+          rec.cause = it.record.cause || '-';
+          rec.action_taken = it.record.action_taken || it.record.work_log;
+        } else {
+          rec.title = it.record.title;
+          rec.work_log = it.record.work_log;
+        }
+
+        return {
+          tab: it.assignedTab,
+          data: rec
+        };
+      });
+
+      try {
+        const res = await fetch(`${API_BASE}/records/multi-import`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items: payloadItems })
+        });
+        if (res.ok) {
+          await fetchAllData();
+        }
+      } catch (err) {
+        payloadItems.forEach(it => {
+          if (!allRecords[it.tab]) allRecords[it.tab] = [];
+          it.data.id = Date.now().toString() + Math.random();
+          allRecords[it.tab].unshift(it.data);
+        });
+        localStorage.setItem('tech_records_storage_live', JSON.stringify(allRecords));
+        renderCurrentTab();
+      }
+
+      alert(`총 ${payloadItems.length}건의 이력이 선택하신 구분 탭으로 성공적으로 분류 및 등록되었습니다.`);
+      closeUploadModal();
+    }
+
+    function renderCurrentTab() {
+      if (activeTab === 'settings') return;
+
+      const startDate = document.getElementById('filter-start-date').value;
+      const endDate = document.getElementById('filter-end-date').value;
+      const kw = document.getElementById('filter-keyword').value.toLowerCase().trim();
+
+      // 이력관리 탭 처리
+      if (activeTab === 'history') {
+        const checkedTabs = Array.from(document.querySelectorAll('.history-tab-cb:checked')).map(cb => cb.value);
+        let combinedHistory = [];
+
+        checkedTabs.forEach(tk => {
+          const items = allRecords[tk] || [];
+          items.forEach(it => {
+            combinedHistory.push({ ...it, originalTab: tk });
+          });
+        });
+
+        combinedHistory.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.id || '').localeCompare(a.id || ''));
+
+        const filtered = combinedHistory.filter(item => {
+          const matchDate = (!startDate || item.date >= startDate) && (!endDate || item.date <= endDate);
+          let matchKw = !kw;
+          if (kw) {
+            const values = Object.values(item).map(v => String(v).toLowerCase());
+            matchKw = values.some(v => v.includes(kw));
+          }
+          return matchDate && matchKw;
+        });
+
+        document.getElementById('view-subtitle').innerText = `총 ${filtered.length}건의 전체 부서 이력이 시간순으로 정렬되었습니다.`;
+        document.getElementById('table-row-count').innerText = `${filtered.length}건`;
+        renderHistoryTableUI(filtered);
+        return;
+      }
+
+      // 일반 단일 탭 처리
+      const dataset = allRecords[activeTab] || [];
+      const filtered = dataset.filter(item => {
+        const matchDate = (!startDate || item.date >= startDate) && (!endDate || item.date <= endDate);
+        let matchKw = !kw;
+        if (kw) {
+          const values = Object.values(item).map(v => String(v).toLowerCase());
+          matchKw = values.some(v => v.includes(kw));
+        }
+        return matchDate && matchKw;
+      });
+
+      document.getElementById('view-subtitle').innerText = `총 ${filtered.length}건의 이력이 검색되었습니다.`;
+      document.getElementById('table-row-count').innerText = `${filtered.length}건`;
+      renderTableUI(filtered);
+    }
+
+    function renderTableUI(data) {
+      const thead = document.getElementById('table-head');
+      const tbody = document.getElementById('table-body');
+      const isMaint = activeTab === 'maintenance';
+
+      if (isMaint) {
+        thead.innerHTML = `
+          <tr>
+            <th class="py-3 px-3 w-24">일자</th>
+            <th class="py-3 px-3 w-20">작성자</th>
+            <th class="py-3 px-3 w-40">장비/시스템명</th>
+            <th class="py-3 px-3">증상</th>
+            <th class="py-3 px-3">원인</th>
+            <th class="py-3 px-3">조치내역</th>
+            <th class="py-3 px-3 w-36">첨부문서</th>
+            <th class="py-3 px-3 w-32">기타사항</th>
+            <th class="py-3 px-3 w-20 text-center print:hidden">관리</th>
+          </tr>`;
+      } else {
+        thead.innerHTML = `
+          <tr>
+            <th class="py-3 px-3 w-24">날짜</th>
+            <th class="py-3 px-3 w-20">작성자</th>
+            <th class="py-3 px-3 w-48">제목</th>
+            <th class="py-3 px-3">업무기록</th>
+            <th class="py-3 px-3 w-36">첨부문서</th>
+            <th class="py-3 px-3 w-40">기타사항</th>
+            <th class="py-3 px-3 w-20 text-center print:hidden">관리</th>
+          </tr>`;
+      }
+
+      tbody.innerHTML = '';
+      if (data.length === 0) {
+        const colSpan = isMaint ? 9 : 7;
+        tbody.innerHTML = `<tr><td colspan="${colSpan}" class="text-center py-8 text-slate-400">등록되거나 검색된 이력 데이터가 없습니다.</td></tr>`;
+        return;
+      }
+
+      data.forEach(item => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-50 border-b border-slate-100 transition";
+
+        const actionButtons = `
+          <td class="py-2.5 px-3 text-center print:hidden">
+            <div class="flex items-center justify-center space-x-1.5">
+              <button onclick="editRecord('${activeTab}', '${item.id}')" class="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition" title="수정">
+                <i data-lucide="edit-3" class="w-4 h-4"></i>
+              </button>
+              <button onclick="deleteRecord('${activeTab}', '${item.id}')" class="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition" title="삭제">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+              </button>
+            </div>
+          </td>
+        `;
+
+        let attachHtml = `<span class="text-slate-300">-</span>`;
+        if (item.attachment) {
+          attachHtml = `
+            <div class="inline-flex items-center space-x-1 bg-indigo-50 border border-indigo-200 rounded px-1.5 py-0.5 max-w-[130px]">
+              <button onclick="openAttachment('${escapeHtml(item.attachment)}')" class="inline-flex items-center space-x-1 text-indigo-700 hover:text-indigo-900 truncate text-[11px] font-medium transition" title="클릭 시 파일 열람/다운로드">
+                <i data-lucide="paperclip" class="w-3 h-3 flex-shrink-0"></i>
+                <span class="truncate">${escapeHtml(item.attachment)}</span>
+              </button>
+              <button onclick="deleteAttachmentOnly('${activeTab}', '${item.id}', '${escapeHtml(item.attachment)}')" class="text-slate-400 hover:text-rose-600 p-0.5 transition" title="첨부파일 삭제">
+                <i data-lucide="x" class="w-3 h-3"></i>
+              </button>
+            </div>
+          `;
+        }
+
+        if (isMaint) {
+          tr.innerHTML = `
+            <td class="py-2.5 px-3 font-mono text-slate-500 whitespace-nowrap">${item.date}</td>
+            <td class="py-2.5 px-3 font-semibold text-slate-700 whitespace-nowrap">${escapeHtml(item.author || '-')}</td>
+            <td class="py-2.5 px-3 font-bold text-slate-900">${escapeHtml(item.equipment_name)}</td>
+            <td class="py-2.5 px-3 whitespace-pre-wrap">${escapeHtml(item.symptom)}</td>
+            <td class="py-2.5 px-3 whitespace-pre-wrap text-slate-600">${escapeHtml(item.cause)}</td>
+            <td class="py-2.5 px-3 whitespace-pre-wrap text-indigo-900 font-medium">${escapeHtml(item.action_taken)}</td>
+            <td class="py-2.5 px-3 whitespace-nowrap">${attachHtml}</td>
+            <td class="py-2.5 px-3 text-slate-500">${escapeHtml(item.notes || '-')}</td>
+            ${actionButtons}
+          `;
+        } else {
+          tr.innerHTML = `
+            <td class="py-2.5 px-3 font-mono text-slate-500 whitespace-nowrap">${item.date}</td>
+            <td class="py-2.5 px-3 font-semibold text-slate-700 whitespace-nowrap">${escapeHtml(item.author || '-')}</td>
+            <td class="py-2.5 px-3 font-bold text-slate-900">${escapeHtml(item.title)}</td>
+            <td class="py-2.5 px-3 whitespace-pre-wrap">${escapeHtml(item.work_log)}</td>
+            <td class="py-2.5 px-3 whitespace-nowrap">${attachHtml}</td>
+            <td class="py-2.5 px-3 text-slate-500">${escapeHtml(item.notes || '-')}</td>
+            ${actionButtons}
+          `;
+        }
+        tbody.appendChild(tr);
+      });
+      lucide.createIcons();
+    }
+
+    function renderHistoryTableUI(data) {
+      const thead = document.getElementById('table-head');
+      const tbody = document.getElementById('table-body');
+
+      thead.innerHTML = `
+        <tr>
+          <th class="py-3 px-3 w-24">일자</th>
+          <th class="py-3 px-3 w-24">구분(탭)</th>
+          <th class="py-3 px-3 w-20">작성자</th>
+          <th class="py-3 px-3 w-44">제목 / 시스템장비명</th>
+          <th class="py-3 px-3">상세 기록 / 조치내역</th>
+          <th class="py-3 px-3 w-36">첨부문서</th>
+          <th class="py-3 px-3 w-32">기타사항</th>
+          <th class="py-3 px-3 w-20 text-center print:hidden">관리</th>
+        </tr>`;
+
+      tbody.innerHTML = '';
+      if (data.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-slate-400">선택된 카테고리의 이력 데이터가 없습니다.</td></tr>`;
+        return;
+      }
+
+      data.forEach(item => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-50 border-b border-slate-100 transition";
+
+        const isMaint = item.originalTab === 'maintenance';
+        const titleText = isMaint ? item.equipment_name : item.title;
+        const detailText = isMaint 
+          ? `[증상] ${item.symptom} | [원인] ${item.cause} | [조치] ${item.action_taken}`
+          : item.work_log;
+
+        let attachHtml = `<span class="text-slate-300">-</span>`;
+        if (item.attachment) {
+          attachHtml = `
+            <div class="inline-flex items-center space-x-1 bg-indigo-50 border border-indigo-200 rounded px-1.5 py-0.5 max-w-[130px]">
+              <button onclick="openAttachment('${escapeHtml(item.attachment)}')" class="inline-flex items-center space-x-1 text-indigo-700 hover:text-indigo-900 truncate text-[11px] font-medium transition" title="클릭 시 파일 열람/다운로드">
+                <i data-lucide="paperclip" class="w-3 h-3 flex-shrink-0"></i>
+                <span class="truncate">${escapeHtml(item.attachment)}</span>
+              </button>
+              <button onclick="deleteAttachmentOnly('${item.originalTab}', '${item.id}', '${escapeHtml(item.attachment)}')" class="text-slate-400 hover:text-rose-600 p-0.5 transition" title="첨부파일 삭제">
+                <i data-lucide="x" class="w-3 h-3"></i>
+              </button>
+            </div>
+          `;
+        }
+
+        tr.innerHTML = `
+          <td class="py-2.5 px-3 font-mono text-slate-500 whitespace-nowrap">${item.date}</td>
+          <td class="py-2.5 px-3 whitespace-nowrap"><span class="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-700">${TAB_NAMES[item.originalTab]}</span></td>
+          <td class="py-2.5 px-3 font-semibold text-slate-700 whitespace-nowrap">${escapeHtml(item.author || '-')}</td>
+          <td class="py-2.5 px-3 font-bold text-slate-900">${escapeHtml(titleText || '-')}</td>
+          <td class="py-2.5 px-3 whitespace-pre-wrap text-slate-700">${escapeHtml(detailText || '-')}</td>
+          <td class="py-2.5 px-3 whitespace-nowrap">${attachHtml}</td>
+          <td class="py-2.5 px-3 text-slate-500">${escapeHtml(item.notes || '-')}</td>
+          <td class="py-2.5 px-3 text-center print:hidden">
+            <div class="flex items-center justify-center space-x-1.5">
+              <button onclick="editRecord('${item.originalTab}', '${item.id}')" class="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition" title="해당 탭으로 이동하여 수정">
+                <i data-lucide="edit-3" class="w-4 h-4"></i>
+              </button>
+              <button onclick="deleteRecord('${item.originalTab}', '${item.id}')" class="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition" title="삭제">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+              </button>
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+      lucide.createIcons();
+    }
+
+    async function exportSingleTab(type) {
+      if (activeTab === 'history') {
+        exportAggregated(type);
+        return;
+      }
+
+      const currentList = allRecords[activeTab] || [];
+      if (currentList.length === 0) {
+        alert('출력할 이력 데이터가 없습니다.');
+        return;
+      }
+
+      const todayStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      const baseName = `기술정책부_${TAB_NAMES[activeTab]}이력_${todayStr}`;
+      const isMaint = activeTab === 'maintenance';
+      let fullName = "";
+      let base64Content = "";
+
+      if (type === 'excel') {
+        fullName = `${baseName}.xlsx`;
+        let sheetData = [];
+        if (isMaint) {
+          sheetData = currentList.map(r => ({
+            '일자': r.date, '작성자': r.author || '-', '장비명': r.equipment_name, '증상': r.symptom,
+            '원인': r.cause, '조치내역': r.action_taken, '첨부문서': r.attachment || '', '기타사항': r.notes
+          }));
+        } else {
+          sheetData = currentList.map(r => ({
+            '날짜': r.date, '작성자': r.author || '-', '제목': r.title, '업무기록': r.work_log, '첨부문서': r.attachment || '', '기타사항': r.notes
+          }));
+        }
+        const ws = XLSX.utils.json_to_sheet(sheetData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, TAB_NAMES[activeTab]);
+        const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
+        base64Content = wbout;
+        downloadBlob(new Blob([s2ab(atob(wbout))], { type: 'application/octet-stream' }), fullName);
+      }
+      else if (type === 'pdf') {
+        fullName = `${baseName}.pdf`;
+        const elem = document.getElementById('print-capture-area');
+        const worker = html2pdf().set({
+          margin: 10, filename: fullName, image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+        }).from(elem);
+
+        worker.outputPdf('datauristring').then(async (uri) => {
+          base64Content = uri.split(',')[1];
+          worker.save();
+          await sendSyncRequest(TAB_NAMES[activeTab], type, base64Content, fullName);
+        });
+        return;
+      }
+      else if (type === 'word' || type === 'hwp') {
+        const ext = type === 'word' ? 'doc' : 'hwp';
+        fullName = `${baseName}.${ext}`;
+
+        let th = isMaint 
+          ? `<tr><th>일자</th><th>작성자</th><th>장비명</th><th>증상</th><th>원인</th><th>조치내역</th><th>첨부문서</th><th>기타사항</th></tr>`
+          : `<tr><th>날짜</th><th>작성자</th><th>제목</th><th>업무기록</th><th>첨부문서</th><th>기타사항</th></tr>`;
+
+        let trs = currentList.map(r => {
+          if (isMaint) {
+            return `<tr><td>${r.date}</td><td>${r.author || '-'}</td><td>${r.equipment_name}</td><td>${r.symptom}</td><td>${r.cause}</td><td>${r.action_taken}</td><td>${r.attachment || ''}</td><td>${r.notes || ''}</td></tr>`;
+          } else {
+            return `<tr><td>${r.date}</td><td>${r.author || '-'}</td><td>${r.title}</td><td>${r.work_log}</td><td>${r.attachment || ''}</td><td>${r.notes || ''}</td></tr>`;
+          }
+        }).join('');
+
+        const htmlDoc = `
+          <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+          <head><meta charset='utf-8'><title>${baseName}</title>
+          <style>table{border-collapse:collapse;width:100%;} th,td{border:1px solid #333;padding:6px;font-size:10pt;} th{background:#f1f5f9;font-weight:bold;}</style>
+          </head><body><h2>기술정책부 ${TAB_NAMES[activeTab]} 이력 리포트</h2>
+          <table><thead>${th}</thead><tbody>${trs}</tbody></table></body></html>`;
+
+        const blob = new Blob(['\ufeff' + htmlDoc], { type: type === 'word' ? 'application/msword' : 'application/x-hwp' });
+        downloadBlob(blob, fullName);
+
+        const reader = new FileReader();
+        reader.readAsDataURL(blob);
+        reader.onloadend = async () => {
+          base64Content = reader.result.split(',')[1];
+          await sendSyncRequest(TAB_NAMES[activeTab], type, base64Content, fullName);
+        };
+        return;
+      }
+
+      if (base64Content) {
+        await sendSyncRequest(TAB_NAMES[activeTab], type, base64Content, fullName);
+      }
+    }
+
+    async function exportAggregated(type) {
+      const mode = document.getElementById('aggregate-mode').value;
+      const modeLabel = { daily: "날짜별", weekly: "주간별(월~일)", monthly: "월별" }[mode];
+
+      let combined = [];
+      for (const tabKey of ['leader', 'admin', 'rf', 'radio', 'research', 'procurement', 'maintenance', 'etc']) {
+        const list = allRecords[tabKey] || [];
+        list.forEach(item => {
+          combined.push({
+            tabCategory: TAB_NAMES[tabKey],
+            date: item.date,
+            author: item.author || '-',
+            title: item.title || item.equipment_name || '-',
+            detail: item.work_log || `[증상] ${item.symptom || '-'} | [원인] ${item.cause || '-'} | [조치] ${item.action_taken || '-'}`,
+            attachment: item.attachment || '-',
+            notes: item.notes || '-'
+          });
+        });
+      }
+
+      if (combined.length === 0) {
+        alert('통합 집계할 이력 데이터가 없습니다.');
+        return;
+      }
+
+      combined.sort((a, b) => b.date.localeCompare(a.date));
+
+      function getGroupKey(dateStr) {
+        if (!dateStr) return "미지정";
+        if (mode === 'daily') return dateStr;
+        if (mode === 'monthly') return dateStr.slice(0, 7);
+        if (mode === 'weekly') {
+          const d = new Date(dateStr);
+          const day = d.getDay();
+          const diffToMon = (day === 0 ? -6 : 1) - day;
+          const mon = new Date(d);
+          mon.setDate(d.getDate() + diffToMon);
+          const sun = new Date(mon);
+          sun.setDate(mon.getDate() + 6);
+          return `${mon.toISOString().slice(0, 10)} ~ ${sun.toISOString().slice(0, 10)}`;
+        }
+        return dateStr;
+      }
+
+      let grouped = {};
+      combined.forEach(r => {
+        const gk = getGroupKey(r.date);
+        if (!grouped[gk]) grouped[gk] = [];
+        grouped[gk].push(r);
+      });
+
+      const todayStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      const baseName = `기술정책부_전체통합_${modeLabel}_${todayStr}`;
+      let fullName = "";
+      let base64Content = "";
+
+      if (type === 'excel') {
+        fullName = `${baseName}.xlsx`;
+        const wb = XLSX.utils.book_new();
+
+        const flatData = combined.map(r => ({
+          '집계그룹': getGroupKey(r.date),
+          '일자': r.date,
+          '구분(탭)': r.tabCategory,
+          '작성자': r.author,
+          '제목/장비명': r.title,
+          '업무/조치내용': r.detail,
+          '첨부문서': r.attachment,
+          '기타사항': r.notes
+        }));
+        const wsAll = XLSX.utils.json_to_sheet(flatData);
+        XLSX.utils.book_append_sheet(wb, wsAll, "통합집계전체");
+
+        const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
+        base64Content = wbout;
+        downloadBlob(new Blob([s2ab(atob(wbout))], { type: 'application/octet-stream' }), fullName);
+      }
+      else if (type === 'pdf') {
+        fullName = `${baseName}.pdf`;
+        const container = document.getElementById('aggregated-print-area');
+        container.classList.remove('hidden');
+
+        let html = `<h2 class="text-base font-bold mb-3">기술정책부 통합 업무 이력 (${modeLabel})</h2>`;
+        for (const [groupName, items] of Object.entries(grouped)) {
+          html += `
+            <div class="mb-4">
+              <h3 class="text-xs font-bold text-indigo-700 bg-indigo-50 p-1.5 rounded mb-1">■ 집계 기간: ${groupName} (총 ${items.length}건)</h3>
+              <table class="w-full text-[10px] border-collapse mb-2" border="1" style="border:1px solid #ddd;">
+                <thead>
+                  <tr style="background:#f1f5f9;">
+                    <th style="padding:4px; width:65px;">일자</th>
+                    <th style="padding:4px; width:65px;">구분</th>
+                    <th style="padding:4px; width:50px;">작성자</th>
+                    <th style="padding:4px; width:110px;">제목/장비명</th>
+                    <th style="padding:4px;">업무기록 / 조치내역</th>
+                    <th style="padding:4px; width:65px;">첨부</th>
+                    <th style="padding:4px; width:65px;">기타</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${items.map(it => `
+                    <tr>
+                      <td style="padding:4px;">${it.date}</td>
+                      <td style="padding:4px; font-weight:bold;">${it.tabCategory}</td>
+                      <td style="padding:4px;">${it.author}</td>
+                      <td style="padding:4px; font-weight:bold;">${escapeHtml(it.title)}</td>
+                      <td style="padding:4px;">${escapeHtml(it.detail)}</td>
+                      <td style="padding:4px;">${escapeHtml(it.attachment)}</td>
+                      <td style="padding:4px;">${escapeHtml(it.notes)}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          `;
+        }
+        container.innerHTML = html;
+
+        const worker = html2pdf().set({
+          margin: 10, filename: fullName, image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+        }).from(container);
+
+        worker.outputPdf('datauristring').then(async (uri) => {
+          base64Content = uri.split(',')[1];
+          worker.save();
+          container.classList.add('hidden');
+          await sendSyncRequest(`통합_${modeLabel}`, type, base64Content, fullName);
+        });
+        return;
+      }
+      else if (type === 'word' || type === 'hwp') {
+        const ext = type === 'word' ? 'doc' : 'hwp';
+        fullName = `${baseName}.${ext}`;
+
+        let sectionsHtml = '';
+        for (const [groupName, items] of Object.entries(grouped)) {
+          sectionsHtml += `
+            <h3 style="color:#3730a3; margin-top:20px;">■ 집계 구분: ${groupName} (총 ${items.length}건)</h3>
+            <table border="1" style="border-collapse:collapse; width:100%; font-size:10pt;">
+              <thead>
+                <tr style="background:#f1f5f9;">
+                  <th style="width:11%;">일자</th>
+                  <th style="width:11%;">구분</th>
+                  <th style="width:10%;">작성자</th>
+                  <th style="width:22%;">제목/장비명</th>
+                  <th style="width:28%;">업무기록 / 조치내역</th>
+                  <th style="width:9%;">첨부</th>
+                  <th style="width:9%;">기타</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${items.map(it => `
+                  <tr>
+                    <td>${it.date}</td>
+                    <td style="font-weight:bold;">${it.tabCategory}</td>
+                    <td>${it.author}</td>
+                    <td style="font-weight:bold;">${escapeHtml(it.title)}</td>
+                    <td>${escapeHtml(it.detail)}</td>
+                    <td>${escapeHtml(it.attachment)}</td>
+                    <td>${escapeHtml(it.notes)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          `;
+        }
+
+        const htmlDoc = `
+          <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+          <head><meta charset='utf-8'><title>${baseName}</title>
+          <style>body{font-family:sans-serif;} table{border-collapse:collapse;width:100%;} th,td{border:1px solid #444;padding:6px;font-size:10pt;}</style>
+          </head><body>
+            <h2>기술정책부 통합 업무 이력 보고서 (${modeLabel})</h2>
+            <p>생성일시: ${new Date().toLocaleString()}</p>
+            ${sectionsHtml}
+          </body></html>`;
+
+        const blob = new Blob(['\ufeff' + htmlDoc], { type: type === 'word' ? 'application/msword' : 'application/x-hwp' });
+        downloadBlob(blob, fullName);
+
+        const reader = new FileReader();
+        reader.readAsDataURL(blob);
+        reader.onloadend = async () => {
+          base64Content = reader.result.split(',')[1];
+          await sendSyncRequest(`통합_${modeLabel}`, type, base64Content, fullName);
+        };
+        return;
+      }
+
+      if (base64Content) {
+        await sendSyncRequest(`통합_${modeLabel}`, type, base64Content, fullName);
+      }
+    }
+
+    async function sendSyncRequest(tabTitle, fileType, base64Data, fileName) {
+      try {
+        const res = await fetch(`${API_BASE}/export-sync`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            tab_name: tabTitle,
+            file_type: fileType,
+            file_content_base64: base64Data,
+            file_name: fileName
+          })
+        });
+        if (res.ok) {
+          const result = await res.json();
+          alert(`[3중 동기화 처리 완료]\n1. 로컬 PC 다운로드: 완료\n2. NAS 저장: ${result.nas_result}\n3. 카카오톡 발송: ${result.kakao_result}`);
+        }
+      } catch (err) {
+        alert('로컬 PC 다운로드 완료 (백엔드 미실행으로 NAS 저장 및 카카오 발송은 생략되었습니다).');
+      }
+    }
+
+    async function loadBackendConfig() {
+      try {
+        const res = await fetch(`${API_BASE}/config`);
+        if (res.ok) {
+          const cfg = await res.json();
+          document.getElementById('cfg-preset-name').value = cfg.preset_name || '기본 프리셋';
+          document.getElementById('cfg-nas-path').value = cfg.nas_path || '';
+          document.getElementById('cfg-attachment-path').value = cfg.attachment_path || 'C:/git-work/system_maintenance_history/uploads';
+          document.getElementById('cfg-local-path').value = cfg.local_backup_path || './local_exports';
+          document.getElementById('cfg-kakao-token').value = cfg.kakao_token || '';
+        }
+      } catch (e) {}
+    }
+
+    async function saveConfigSettings() {
+      const preset_name = document.getElementById('cfg-preset-name').value.trim();
+      const nas_path = document.getElementById('cfg-nas-path').value.trim();
+      const attachment_path = document.getElementById('cfg-attachment-path').value.trim();
+      const local_backup_path = document.getElementById('cfg-local-path').value.trim();
+      const kakao_token = document.getElementById('cfg-kakao-token').value.trim();
+      try {
+        await fetch(`${API_BASE}/config`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ preset_name, nas_path, attachment_path, local_backup_path, kakao_token })
+        });
+        alert('설정이 성공적으로 저장되었습니다.');
+      } catch (e) {
+        alert('서버 연결을 확인하세요.');
+      }
+    }
+
+    function downloadPresetFile() {
+      const presetData = {
+        preset_name: document.getElementById('cfg-preset-name').value.trim(),
+        nas_path: document.getElementById('cfg-nas-path').value.trim(),
+        attachment_path: document.getElementById('cfg-attachment-path').value.trim(),
+        local_backup_path: document.getElementById('cfg-local-path').value.trim(),
+        kakao_token: document.getElementById('cfg-kakao-token').value.trim(),
+        exported_at: new Date().toISOString()
+      };
+      const blob = new Blob([JSON.stringify(presetData, null, 2)], { type: 'application/json' });
+      downloadBlob(blob, `tech_preset_${presetData.preset_name.replace(/\s+/g, '_')}.json`);
+    }
+
+    function importPresetFile(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const cfg = JSON.parse(e.target.result);
+          document.getElementById('cfg-preset-name').value = cfg.preset_name || '';
+          document.getElementById('cfg-nas-path').value = cfg.nas_path || '';
+          document.getElementById('cfg-attachment-path').value = cfg.attachment_path || '';
+          document.getElementById('cfg-local-path').value = cfg.local_backup_path || './local_exports';
+          document.getElementById('cfg-kakao-token').value = cfg.kakao_token || '';
+          await saveConfigSettings();
+          alert('프리셋 파일을 성공적으로 불러와 적용했습니다.');
+        } catch (err) {
+          alert('올바른 JSON 프리셋 파일이 아닙니다.');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function downloadBlob(blob, name) {
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = name;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    }
+
+    function s2ab(s) {
+      const buf = new ArrayBuffer(s.length);
+      const view = new Uint8Array(buf);
+      for (let i = 0; i < s.length; i++) view[i] = s.charCodeAt(i) & 0xFF;
+      return buf;
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    }
+  </script>
+</body>
+</html>

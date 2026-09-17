@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>기술정책부 모바일 관리 포털</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- SheetJS (Excel) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- html2pdf.js (PDF) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    /* 모바일 가로 스크롤바 숨김 처리 (깔끔한 터치 슬라이드) */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 flex flex-col min-h-screen font-sans antialiased">
+
+  <!-- ================= 1. 모바일 최적화 상단 고정 헤더 ================= -->
+  <header class="bg-slate-900 text-white sticky top-0 z-50 shadow-md">
+    <!-- 최상단 타이틀 바 & 홈 버튼 -->
+    <div class="px-4 py-3 flex items-center justify-between border-b border-slate-800">
+      <div class="flex items-center space-x-2.5">
+        <div class="p-1.5 bg-indigo-600 rounded-lg">
+          <i data-lucide="radio-tower" class="w-4 h-4 text-white"></i>
+        </div>
+        <div>
+          <div class="flex items-center space-x-1.5">
+            <h1 class="text-xs font-bold tracking-wide">기술정책부 관리 포털</h1>
+            <span id="server-status-badge" class="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center space-x-1">
+              <span class="w-1 h-1 rounded-full bg-amber-400 animate-pulse"></span>
+              <span>확인 중</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 우측 상단 홈 버튼 (서버 상태 실시간 갱신) -->
+      <button onclick="goHome()" class="flex items-center space-x-1 px-2.5 py-1.5 bg-indigo-600 active:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow transition" title="초기화면 복귀 및 서버 갱신">
+        <i data-lucide="home" class="w-3.5 h-3.5"></i>
+        <span>홈</span>
+      </button>
+    </div>
+
+    <!-- 모바일 컴팩트 검색/필터 바 -->
+    <div class="p-2.5 bg-slate-800 flex flex-col gap-2">
+      <!-- 1행: 연도 선택 & 기간 캘린더 피커 -->
+      <div class="flex items-center space-x-1.5">
+        <input type="number" id="filter-year-input" min="2000" max="2099" placeholder="YYYY" oninput="handleYearDirectInput()" class="w-14 bg-slate-900 border border-slate-700 rounded-lg text-xs px-1.5 py-1 text-white outline-none focus:ring-1 focus:ring-indigo-400 font-mono text-center">
+        <select id="filter-year-select" onchange="handleYearSelectChange()" class="bg-slate-900 border border-slate-700 rounded-lg text-xs px-1.5 py-1 text-white outline-none">
+          <option value="ALL">전체</option>
+          <option value="2026" selected>2026년</option>
+          <option value="2025">2025년</option>
+          <option value="2024">2024년</option>
+        </select>
+        <div class="flex-1 flex items-center space-x-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-0.5">
+          <input type="date" id="filter-start-date" onchange="renderCurrentTab()" class="bg-transparent text-[11px] text-white outline-none w-full">
+          <span class="text-slate-500 text-[10px]">~</span>
+          <input type="date" id="filter-end-date" onchange="renderCurrentTab()" class="bg-transparent text-[11px] text-white outline-none w-full">
+        </div>
+      </div>
+
+      <!-- 2행: 키워드 검색 및 초기화 -->
+      <div class="flex items-center space-x-1.5">
+        <div class="relative flex-1">
+          <input type="text" id="filter-keyword" oninput="renderCurrentTab()" placeholder="장비명, 작성자, 내용 검색..." class="w-full bg-slate-900 border border-slate-700 rounded-lg text-xs pl-7 pr-2.5 py-1.5 text-white placeholder-slate-500 outline-none focus:ring-1 focus:ring-indigo-400">
+          <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-2 top-2"></i>
+        </div>
+        <button onclick="resetFilters()" class="px-2.5 py-1.5 bg-slate-700 active:bg-slate-600 rounded-lg text-xs text-slate-300 font-medium whitespace-nowrap">초기화</button>
+      </div>
+    </div>
+
+    <!-- ================= 2. 모바일 터치 스와이프 10개 탭 ================= -->
+    <!-- 탭 글자 크기는 기입란(text-xs)보다 약간 큰 text-sm font-bold 적용 -->
+    <div class="bg-slate-800 border-t border-slate-700">
+      <div class="px-2 flex space-x-1 overflow-x-auto no-scrollbar py-1" id="tab-nav">
+        <button onclick="switchTab('leader')" class="tab-btn px-3 py-2 text-sm font-bold border-b-2 border-indigo-400 text-indigo-400 whitespace-nowrap flex-shrink-0" data-tab="leader">기술정책부장</button>
+        <button onclick="switchTab('admin')" class="tab-btn px-3 py-2 text-sm font-bold border-b-2 border-transparent text-slate-400 whitespace-nowrap flex-shrink-0" data-tab="admin">행정</button>
+        <button onclick="switchTab('rf')" class="tab-btn px-3 py-2 text-sm font-bold border-b-2 border-transparent text-slate-400 whitespace-nowrap flex-shrink-0" data-tab="rf">RF</button>
+        <button onclick="switchTab('radio')" class="tab-btn px-3 py-2 text-sm font-bold border-b-2 border-transparent text-slate-400 whitespace-nowrap flex-shrink-0" data-tab="radio">Radio</button>
+        <button onclick="switchTab('research')" class="tab-btn px-3 py-2 text-sm font-bold border-b-2 border-transparent text-slate-400 whitespace-nowrap flex-shrink-0" data-tab="research">기술연구</button>
+        <button onclick="switchTab('procurement')" class="tab-btn px-3 py-2 text-sm font-bold border-b-2 border-transparent text-slate-400 whitespace-nowrap flex-shrink-0" data-tab="procurement">장비구매</button>
+        <button onclick="switchTab('maintenance')" class="tab-btn px-3 py-2 text-sm font-bold border-b-2 border-transparent text-slate-400 whitespace-nowrap flex-shrink-0" data-tab="maintenance">장비보수</button>
+        <button onclick="switchTab('etc')" class="tab-btn px-3 py-2 text-sm font-bold border-b-2 border-transparent text-slate-400 whitespace-nowrap flex-shrink-0" data-tab="etc">기타</button>
+        
+        <!-- 이력관리 괄호 아이콘 -->
+        <button onclick="switchTab('history')" class="tab-btn px-3 py-2 text-sm font-bold border-b-2 border-transparent text-slate-400 whitespace-nowrap flex-shrink-0 inline-flex items-center space-x-1" data-tab="history">
+          <span>이력관리</span>
+          <span class="text-xs font-normal text-slate-400">(<i data-lucide="history" class="w-3 h-3 inline"></i>)</span>
+        </button>
+        
+        <!-- 설정 괄호 아이콘 -->
+        <button onclick="switchTab('settings')" class="tab-btn px-3 py-2 text-sm font-bold border-b-2 border-transparent text-slate-400 whitespace-nowrap flex-shrink-0 inline-flex items-center space-x-1" data-tab="settings">
+          <span>설정</span>
+          <span class="text-xs font-normal text-slate-400">(<i data-lucide="settings" class="w-3 h-3 inline"></i>)</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ================= 3. 메인 콘텐츠 뷰 ================= -->
+  <main class="p-3 flex-1 w-full space-y-4 max-w-lg mx-auto">
+
+    <!-- 모바일 타이틀 및 액션 버튼 바 -->
+    <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm space-y-2.5">
+      <div class="flex justify-between items-center">
+        <div>
+          <h2 id="view-title" class="text-sm font-bold text-slate-900">기술정책부장 업무 이력</h2>
+          <p id="view-subtitle" class="text-[11px] text-slate-500 mt-0.5">총 0건의 이력이 있습니다.</p>
+        </div>
+        <span class="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-bold" id="card-row-count">0건</span>
+      </div>
+
+      <!-- 모바일 다운로드 & 업로드 도구 바 -->
+      <div class="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100" id="export-btn-group">
+        <button onclick="exportSingleTab('excel')" class="px-2 py-1 bg-emerald-600 active:bg-emerald-700 text-white rounded text-[11px] font-semibold">Excel</button>
+        <button onclick="exportSingleTab('pdf')" class="px-2 py-1 bg-rose-600 active:bg-rose-700 text-white rounded text-[11px] font-semibold">PDF</button>
+        <button onclick="exportSingleTab('word')" class="px-2 py-1 bg-blue-600 active:bg-blue-700 text-white rounded text-[11px] font-semibold">Word</button>
+        <button onclick="exportSingleTab('hwp')" class="px-2 py-1 bg-sky-600 active:bg-sky-700 text-white rounded text-[11px] font-semibold">한글</button>
+        
+        <label class="px-2 py-1 bg-amber-600 active:bg-amber-700 text-white rounded text-[11px] font-semibold flex items-center space-x-1 cursor-pointer">
+          <i data-lucide="upload" class="w-3 h-3"></i>
+          <span>파일 업로드</span>
+          <input type="file" id="import-data-file" accept=".xlsx, .xls, .json" onchange="handleFileUpload(event)" class="hidden">
+        </label>
+      </div>
+    </div>
+
+    <!-- 신규 기입 및 수정 폼 (모바일 1열 카드 레이아웃) -->
+    <div id="form-container" class="bg-white rounded-xl border border-slate-200 shadow-sm p-4"></div>
+
+    <!-- [이력관리 탭 전용] 카테고리 체크박스 필터 -->
+    <div id="history-filter-container" class="hidden bg-white rounded-xl border border-indigo-100 shadow-sm p-3 space-y-2">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-1.5">
+        <span class="text-xs font-bold text-indigo-900 flex items-center space-x-1">
+          <i data-lucide="filter" class="w-3.5 h-3.5 text-indigo-600"></i>
+          <span>카테고리 선택 조회</span>
+        </span>
+        <div class="flex space-x-2 text-[11px]">
+          <button onclick="toggleAllHistoryCheckboxes(true)" class="text-indigo-600 font-semibold">모두 선택</button>
+          <span class="text-slate-300">|</span>
+          <button onclick="toggleAllHistoryCheckboxes(false)" class="text-slate-500 font-semibold">해제</button>
+        </div>
+      </div>
+      <div class="grid grid-cols-3 gap-2 pt-1 text-xs" id="history-checkbox-list">
+        <label class="flex items-center space-x-1 cursor-pointer"><input type="checkbox" value="leader" checked onchange="renderCurrentTab()" class="history-tab-cb text-indigo-600 rounded"><span>기술정책부장</span></label>
+        <label class="flex items-center space-x-1 cursor-pointer"><input type="checkbox" value="admin" checked onchange="renderCurrentTab()" class="history-tab-cb text-indigo-600 rounded"><span>행정</span></label>
+        <label class="flex items-center space-x-1 cursor-pointer"><input type="checkbox" value="rf" checked onchange="renderCurrentTab()" class="history-tab-cb text-indigo-600 rounded"><span>RF</span></label>
+        <label class="flex items-center space-x-1 cursor-pointer"><input type="checkbox" value="radio" checked onchange="renderCurrentTab()" class="history-tab-cb text-indigo-600 rounded"><span>Radio</span></label>
+        <label class="flex items-center space-x-1 cursor-pointer"><input type="checkbox" value="research" checked onchange="renderCurrentTab()" class="history-tab-cb text-indigo-600 rounded"><span>기술연구</span></label>
+        <label class="flex items-center space-x-1 cursor-pointer"><input type="checkbox" value="procurement" checked onchange="renderCurrentTab()" class="history-tab-cb text-indigo-600 rounded"><span>장비구매</span></label>
+        <label class="flex items-center space-x-1 cursor-pointer"><input type="checkbox" value="maintenance" checked onchange="renderCurrentTab()" class="history-tab-cb text-indigo-600 rounded"><span>장비보수</span></label>
+        <label class="flex items-center space-x-1 cursor-pointer"><input type="checkbox" value="etc" checked onchange="renderCurrentTab()" class="history-tab-cb text-indigo-600 rounded"><span>기타</span></label>
+      </div>
+    </div>
+
+    <!-- 하단 업무 이력 목록 (모바일 카드 피드 뷰) -->
+    <div id="print-capture-area" class="space-y-3">
+      <div class="flex justify-between items-center px-1 text-xs font-bold text-slate-700">
+        <span id="table-badge-title">업무 이력 대장</span>
+        <span class="text-[11px] text-slate-400 font-normal">* 첨부파일 터치 시 다운로드</span>
+      </div>
+
+      <!-- 모바일 카드 목록 렌더링 컨테이너 -->
+      <div id="mobile-card-list" class="space-y-2.5"></div>
+    </div>
+
+    <!-- 설정 탭 패널 -->
+    <div id="settings-panel" class="hidden bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-4">
+      <div class="border-b border-slate-100 pb-2">
+        <h2 class="text-sm font-bold text-slate-800">모바일 스토리지 및 알림 설정</h2>
+        <p class="text-[11px] text-slate-400 mt-0.5">PC 백엔드 IP 주소와 NAS, 첨부파일 폴더를 지정합니다.</p>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">백엔드 서버 API 주소</label>
+          <input type="text" id="cfg-server-ip" placeholder="http://192.168.0.50:8000 또는 http://localhost:8000" class="w-full border border-slate-300 rounded-lg p-2 outline-none focus:ring-1 focus:ring-indigo-500 font-mono text-[11px]">
+          <p class="text-[10px] text-slate-400 mt-0.5">* 스마트폰 접속 시 서버 PC의 로컬 IP(192.168.x.x)를 입력하세요.</p>
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">첨부문서 전용 저장 폴더 경로</label>
+          <input type="text" id="cfg-attachment-path" placeholder="C:/git-work/system_maintenance_history/uploads" class="w-full border border-slate-300 rounded-lg p-2 outline-none focus:ring-1 focus:ring-indigo-500 font-mono text-[11px]">
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">NAS 스토리지 대상 폴더 경로</label>
+          <input type="text" id="cfg-nas-path" placeholder="Z:\기술정책부_데이터" class="w-full border border-slate-300 rounded-lg p-2 outline-none focus:ring-1 focus:ring-indigo-500 font-mono text-[11px]">
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">카카오톡 사용자 액세스 토큰</label>
+          <input type="text" id="cfg-kakao-token" placeholder="talk_message 권한 토큰" class="w-full border border-slate-300 rounded-lg p-2 outline-none focus:ring-1 focus:ring-indigo-500 text-[11px]">
+        </div>
+      </div>
+
+      <button onclick="saveMobileSettings()" class="w-full py-2.5 bg-slate-900 active:bg-slate-800 text-white rounded-lg text-xs font-bold transition">설정 저장 및 적용</button>
+    </div>
+
+    <!-- 업로드 모달 (모바일 풀스크린 반응형) -->
+    <div id="upload-preview-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-3">
+      <div class="bg-white rounded-2xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+        <div class="px-4 py-3 border-b border-slate-100 flex justify-between items-center bg-indigo-50">
+          <h3 class="text-xs font-bold text-indigo-900">업로드 이력 검토 및 구분 변경</h3>
+          <button onclick="closeUploadModal()" class="text-slate-400 p-1"><i data-lucide="x" class="w-4 h-4"></i></button>
+        </div>
+        <div class="p-3 overflow-y-auto flex-1 space-y-3 text-xs" id="modal-preview-list"></div>
+        <div class="p-3 border-t border-slate-100 flex space-x-2 bg-slate-50">
+          <button onclick="closeUploadModal()" class="flex-1 py-2 border border-slate-300 rounded-lg font-bold text-slate-600 text-xs">취소</button>
+          <button onclick="confirmUploadAndSave()" class="flex-1 py-2 bg-indigo-600 text-white rounded-lg font-bold text-xs">대시보드 반영</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    // 모바일 환경을 고려한 동적 API 베이스 주소
+    let API_BASE = localStorage.getItem('mobile_api_base') || (window.location.hostname === 'localhost' ? 'http://localhost:8000/api' : `http://${window.location.hostname}:8000/api`);
+    if (!API_BASE.endsWith('/api')) API_BASE += '/api';
+
+    let activeTab = "leader";
+    let editingId = null;
+    let pendingUploadItems = [];
+    let selectedAttachmentFile = null;
+    let currentAttachedFileName = "";
+
+    let allRecords = {
+      leader: [], admin: [], rf: [], radio: [], research: [], procurement: [], maintenance: [], etc: []
+    };
+
+    const TAB_NAMES = {
+      leader: "기술정책부장", admin: "행정", rf: "RF", radio: "Radio", research: "기술연구",
+      procurement: "장비구매", maintenance: "장비보수", etc: "기타",
+      history: "이력관리", settings: "설정"
+    };
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      lucide.createIcons();
+      initDefaultDates();
+      document.getElementById('cfg-server-ip').value = API_BASE.replace('/api', '');
+      await checkServerHealth();
+      await loadBackendConfig();
+      await fetchAllData();
+      switchTab('leader');
+    });
+
+    // 서버 헬스체크
+    async function checkServerHealth() {
+      const badge = document.getElementById('server-status-badge');
+      try {
+        const res = await fetch(`${API_BASE}/health`, { method: 'GET' });
+        if (res.ok) {
+          badge.className = "px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center space-x-1";
+          badge.innerHTML = `<span class="w-1 h-1 rounded-full bg-emerald-400"></span><span>온라인</span>`;
+        } else {
+          throw new Error();
+        }
+      } catch (err) {
+        badge.className = "px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center space-x-1";
+        badge.innerHTML = `<span class="w-1 h-1 rounded-full bg-rose-400 animate-ping"></span><span>오프라인</span>`;
+      }
+    }
+
+    function initDefaultDates() {
+      const today = new Date().toISOString().split('T')[0];
+      const curYear = today.split('-')[0];
+      document.getElementById('filter-year-input').value = curYear;
+      document.getElementById('filter-year-select').value = curYear;
+      document.getElementById('filter-start-date').value = `${curYear}-01-01`;
+      document.getElementById('filter-end-date').value = today;
+    }
+
+    function handleYearDirectInput() {
+      const yr = document.getElementById('filter-year-input').value.trim();
+      if (yr.length === 4) {
+        document.getElementById('filter-start-date').value = `${yr}-01-01`;
+        document.getElementById('filter-end-date').value = `${yr}-12-31`;
+        document.getElementById('filter-year-select').value = yr;
+        renderCurrentTab();
+      }
+    }
+
+    function handleYearSelectChange() {
+      const yr = document.getElementById('filter-year-select').value;
+      if (yr !== 'ALL') {
+        document.getElementById('filter-year-input').value = yr;
+        document.getElementById('filter-start-date').value = `${yr}-01-01`;
+        document.getElementById('filter-end-date').value = `${yr}-12-31`;
+      } else {
+        document.getElementById('filter-year-input').value = '';
+        document.getElementById('filter-start-date').value = '';
+        document.getElementById('filter-end-date').value = '';
+      }
+      renderCurrentTab();
+    }
+
+    function resetFilters() {
+      initDefaultDates();
+      document.getElementById('filter-keyword').value = '';
+      renderCurrentTab();
+    }
+
+    async function goHome() {
+      resetFilters();
+      switchTab('leader');
+      await checkServerHealth();
+    }
+
+    function resetInputForm() {
+      editingId = null;
+      selectedAttachmentFile = null;
+      currentAttachedFileName = "";
+      buildFormUI();
+    }
+
+    async function fetchAllData() {
+      try {
+        const res = await fetch(`${API_BASE}/records`);
+        if (res.ok) {
+          allRecords = await res.json();
+        }
+      } catch (e) {
+        const cached = localStorage.getItem('tech_records_storage_mobile');
+        if (cached) allRecords = JSON.parse(cached);
+      }
+      renderCurrentTab();
+    }
+
+    function switchTab(tabKey) {
+      activeTab = tabKey;
+      editingId = null;
+      selectedAttachmentFile = null;
+      currentAttachedFileName = "";
+
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        if (btn.dataset.tab === tabKey) {
+          btn.className = "tab-btn px-3 py-2 text-sm font-bold border-b-2 border-indigo-400 text-indigo-400 whitespace-nowrap flex-shrink-0 inline-flex items-center space-x-1";
+          btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        } else {
+          btn.className = "tab-btn px-3 py-2 text-sm font-bold border-b-2 border-transparent text-slate-400 whitespace-nowrap flex-shrink-0 inline-flex items-center space-x-1";
+        }
+      });
+
+      const isSettings = tabKey === 'settings';
+      const isHistory = tabKey === 'history';
+
+      document.getElementById('settings-panel').classList.toggle('hidden', !isSettings);
+      document.getElementById('form-container').classList.toggle('hidden', isSettings || isHistory);
+      document.getElementById('history-filter-container').classList.toggle('hidden', !isHistory);
+      document.getElementById('print-capture-area').classList.toggle('hidden', isSettings);
+      document.getElementById('export-btn-group').classList.toggle('hidden', isSettings);
+
+      document.getElementById('view-title').innerText = `${TAB_NAMES[tabKey]} 업무 이력`;
+      document.getElementById('table-badge-title').innerText = `${TAB_NAMES[tabKey]} 이력 피드`;
+
+      if (!isSettings && !isHistory) {
+        buildFormUI();
+      }
+      renderCurrentTab();
+      lucide.createIcons();
+    }
+
+    function toggleAllHistoryCheckboxes(checked) {
+      document.querySelectorAll('.history-tab-cb').forEach(cb => cb.checked = checked);
+      renderCurrentTab();
+    }
+
+    function handleAttachmentSelect(event) {
+      const file = event.target.files[0];
+      if (file) {
+        selectedAttachmentFile = file;
+        currentAttachedFileName = file.name;
+        document.getElementById('attachment-label').innerText = file.name;
+        document.getElementById('attachment-clear-btn').classList.remove('hidden');
+      }
+    }
+
+    function clearFormAttachment() {
+      selectedAttachmentFile = null;
+      currentAttachedFileName = "";
+      const input = document.getElementById('f-attachment-input');
+      if (input) input.value = "";
+      document.getElementById('attachment-label').innerText = "선택된 파일 없음";
+      document.getElementById('attachment-clear-btn').classList.add('hidden');
+    }
+
+    async function openAttachment(filename) {
+      if (!filename) return;
+      try {
+        const testRes = await fetch(`${API_BASE}/health`);
+        if (!testRes.ok) throw new Error();
+      } catch (e) {
+        alert("백엔드 서버에 연결할 수 없습니다. IP 설정을 확인하세요.");
+        return;
+      }
+      window.open(`${API_BASE}/attachments/${encodeURIComponent(filename)}`, '_blank');
+    }
+
+    async function deleteAttachmentOnly(tabKey, recordId, filename) {
+      if (!confirm(`첨부파일 [${filename}]을(를) 삭제하시겠습니까?`)) return;
+      try {
+        await fetch(`${API_BASE}/attachments/${encodeURIComponent(filename)}`, { method: 'DELETE' });
+      } catch (e) {}
+
+      const item = (allRecords[tabKey] || []).find(r => r.id === recordId);
+      if (item) {
+        item.attachment = "";
+        try {
+          await fetch(`${API_BASE}/records`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ tab: tabKey, data: item })
+          });
+          await fetchAllData();
+        } catch (err) {
+          localStorage.setItem('tech_records_storage_mobile', JSON.stringify(allRecords));
+          renderCurrentTab();
+        }
+        alert('첨부문서가 삭제되었습니다.');
+      }
+    }
+
+    // 모바일 최적화 단일 열 폼 렌더링
+    function buildFormUI(existingItem = null) {
+      const container = document.getElementById('form-container');
+      const isMaint = activeTab === 'maintenance';
+      const isEditing = Boolean(existingItem);
+      editingId = existingItem ? existingItem.id : null;
+      selectedAttachmentFile = null;
+      currentAttachedFileName = existingItem ? (existingItem.attachment || "") : "";
+
+      const titleText = isEditing ? `${TAB_NAMES[activeTab]} 이력 수정` : `새 ${TAB_NAMES[activeTab]} 이력 작성`;
+
+      let fieldsHtml = '';
+
+      if (isMaint) {
+        fieldsHtml = `
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-[11px] font-bold text-slate-600 mb-1">작업 일자 *</label>
+              <input type="date" id="f-date" required value="${existingItem ? existingItem.date : ''}" class="w-full text-xs border border-slate-300 rounded-lg p-2 outline-none">
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-slate-600 mb-1">작성자 *</label>
+              <input type="text" id="f-author" required placeholder="성명" value="${existingItem ? escapeHtml(existingItem.author) : ''}" class="w-full text-xs border border-slate-300 rounded-lg p-2 outline-none">
+            </div>
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold text-slate-600 mb-1">시스템 / 장비명 *</label>
+            <input type="text" id="f-equip" required placeholder="예: FM 1kW 송신기" value="${existingItem ? escapeHtml(existingItem.equipment_name) : ''}" class="w-full text-xs border border-slate-300 rounded-lg p-2 outline-none">
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold text-slate-600 mb-1">증상 *</label>
+            <textarea id="f-symptom" rows="2" required placeholder="이상 증상 및 에러 내용" class="w-full text-xs border border-slate-300 rounded-lg p-2 outline-none">${existingItem ? escapeHtml(existingItem.symptom) : ''}</textarea>
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold text-slate-600 mb-1">원인 *</label>
+            <textarea id="f-cause" rows="2" required placeholder="파악된 고장 원인" class="w-full text-xs border border-slate-300 rounded-lg p-2 outline-none">${existingItem ? escapeHtml(existingItem.cause) : ''}</textarea>
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold text-slate-600 mb-1">조치 내역 *</label>
+            <textarea id="f-action" rows="2" required placeholder="수리 및 부품 교체 내역" class="w-full text-xs border border-slate-300 rounded-lg p-2 outline-none">${existingItem ? escapeHtml(existingItem.action_taken) : ''}</textarea>
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold text-slate-600 mb-1">기타사항</label>
+            <textarea id="f-notes" rows="1" placeholder="예비품 수량 등" class="w-full text-xs border border-slate-300 rounded-lg p-2 outline-none">${existingItem ? escapeHtml(existingItem.notes || '') : ''}</textarea>
+          </div>
+        `;
+      } else {
+        fieldsHtml = `
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-[11px] font-bold text-slate-600 mb-1">날짜 *</label>
+              <input type="date" id="f-date" required value="${existingItem ? existingItem.date : ''}" class="w-full text-xs border border-slate-300 rounded-lg p-2 outline-none">
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-slate-600 mb-1">작성자 *</label>
+              <input type="text" id="f-author" required placeholder="성명" value="${existingItem ? escapeHtml(existingItem.author) : ''}" class="w-full text-xs border border-slate-300 rounded-lg p-2 outline-none">
+            </div>
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold text-slate-600 mb-1">제목 *</label>
+            <input type="text" id="f-title" required placeholder="업무 건명" value="${existingItem ? escapeHtml(existingItem.title) : ''}" class="w-full text-xs border border-slate-300 rounded-lg p-2 outline-none">
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold text-slate-600 mb-1">업무기록 *</label>
+            <textarea id="f-worklog" rows="3" required placeholder="세부 업무 및 검토 사항" class="w-full text-xs border border-slate-300 rounded-lg p-2 outline-none">${existingItem ? escapeHtml(existingItem.work_log) : ''}</textarea>
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold text-slate-600 mb-1">기타사항</label>
+            <textarea id="f-notes" rows="1" placeholder="비고 및 관련 번호" class="w-full text-xs border border-slate-300 rounded-lg p-2 outline-none">${existingItem ? escapeHtml(existingItem.notes || '') : ''}</textarea>
+          </div>
+        `;
+      }
+
+      container.innerHTML = `
+        <div class="flex justify-between items-center border-b border-slate-100 pb-2 mb-3">
+          <h3 class="text-xs font-bold text-slate-800 flex items-center space-x-1.5">
+            <i data-lucide="${isEditing ? 'edit' : 'plus-circle'}" class="w-3.5 h-3.5 text-indigo-600"></i>
+            <span>${titleText}</span>
+          </h3>
+          ${isEditing ? `<button type="button" onclick="buildFormUI()" class="text-[11px] text-slate-400 hover:text-slate-700">취소</button>` : ''}
+        </div>
+        <form onsubmit="handleFormSubmit(event)" class="space-y-2.5">
+          ${fieldsHtml}
+          
+          <!-- 모바일 파일 첨부 라인 -->
+          <div class="pt-1">
+            <label class="block text-[11px] font-bold text-slate-600 mb-1">첨부문서</label>
+            <div class="flex items-center space-x-2 bg-slate-50 p-2 rounded-lg border border-slate-200">
+              <label class="px-2.5 py-1 bg-white border border-slate-300 rounded text-[11px] font-bold text-slate-700 flex items-center space-x-1 cursor-pointer">
+                <i data-lucide="paperclip" class="w-3 h-3"></i><span>파일 선택</span>
+                <input type="file" id="f-attachment-input" onchange="handleAttachmentSelect(event)" class="hidden">
+              </label>
+              <span id="attachment-label" class="text-[11px] text-slate-500 truncate flex-1">${currentAttachedFileName ? currentAttachedFileName : '선택된 파일 없음'}</span>
+              <button type="button" id="attachment-clear-btn" onclick="clearFormAttachment()" class="${currentAttachedFileName ? '' : 'hidden'} text-rose-500 p-0.5">
+                <i data-lucide="x" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- '이력 저장' 바로 옆에 위치한 '입력 상태 초기화' 버튼 -->
+          <div class="flex items-center space-x-2 pt-2 border-t border-slate-100">
+            <button type="button" onclick="resetInputForm()" class="flex-1 py-2 bg-white border border-slate-300 active:bg-slate-50 text-slate-700 rounded-lg text-xs font-bold transition flex items-center justify-center space-x-1 shadow-sm">
+              <i data-lucide="rotate-ccw" class="w-3.5 h-3.5 text-slate-500"></i>
+              <span>입력 상태 초기화</span>
+            </button>
+            <button type="submit" class="flex-1 py-2 bg-indigo-600 active:bg-indigo-700 text-white rounded-lg text-xs font-bold transition flex items-center justify-center space-x-1 shadow-sm">
+              <i data-lucide="save" class="w-3.5 h-3.5"></i>
+              <span>${isEditing ? '수정 내용 저장' : '이력 저장'}</span>
+            </button>
+          </div>
+        </form>
+      `;
+
+      if (!existingItem) {
+        document.getElementById('f-date').valueAsDate = new Date();
+      }
+      lucide.createIcons();
+    }
+
+    async function handleFormSubmit(e) {
+      e.preventDefault();
+      const isMaint = activeTab === 'maintenance';
+      const dateVal = document.getElementById('f-date').value;
+
+      let finalAttachmentName = currentAttachedFileName || "";
+
+      // 파일 업로드
+      if (selectedAttachmentFile) {
+        try {
+          const formData = new FormData();
+          formData.append("file", selectedAttachmentFile);
+          const res = await fetch(`${API_BASE}/upload-attachment`, { method: "POST", body: formData });
+          if (res.ok) {
+            const uploadRes = await res.json();
+            finalAttachmentName = uploadRes.filename;
+          }
+        } catch (err) {
+          console.warn("오프라인 모드로 파일명만 임시 기록");
+        }
+      }
+
+      let entryData = {
+        date: dateVal,
+        author: document.getElementById('f-author').value.trim(),
+        attachment: finalAttachmentName,
+        id: editingId || null
+      };
+
+      if (isMaint) {
+        entryData.equipment_name = document.getElementById('f-equip').value.trim();
+        entryData.symptom = document.getElementById('f-symptom').value.trim();
+        entryData.cause = document.getElementById('f-cause').value.trim();
+        entryData.action_taken = document.getElementById('f-action').value.trim();
+        entryData.notes = document.getElementById('f-notes').value.trim();
+      } else {
+        entryData.title = document.getElementById('f-title').value.trim();
+        entryData.work_log = document.getElementById('f-worklog').value.trim();
+        entryData.notes = document.getElementById('f-notes').value.trim();
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}/records`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ tab: activeTab, data: entryData })
+        });
+        if (res.ok) await fetchAllData();
+      } catch (err) {
+        if (!allRecords[activeTab]) allRecords[activeTab] = [];
+        if (editingId) {
+          const idx = allRecords[activeTab].findIndex(r => r.id === editingId);
+          if (idx !== -1) allRecords[activeTab][idx] = entryData;
+        } else {
+          entryData.id = Date.now().toString();
+          allRecords[activeTab].unshift(entryData);
+        }
+        localStorage.setItem('tech_records_storage_mobile', JSON.stringify(allRecords));
+        renderCurrentTab();
+      }
+
+      selectedAttachmentFile = null;
+      currentAttachedFileName = "";
+      buildFormUI();
+    }
+
+    function editRecord(tabKey, id) {
+      if (activeTab === 'history') {
+        switchTab(tabKey);
+      }
+      const item = (allRecords[tabKey] || []).find(r => r.id === id);
+      if (item) {
+        buildFormUI(item);
+        window.scrollTo({ top: 180, behavior: 'smooth' });
+      }
+    }
+
+    async function deleteRecord(tabKey, id) {
+      if (!confirm('이 이력을 삭제하시겠습니까?')) return;
+      try {
+        await fetch(`${API_BASE}/records?tab=${tabKey}&id=${id}`, { method: 'DELETE' });
+        await fetchAllData();
+      } catch (err) {
+        allRecords[tabKey] = (allRecords[tabKey] || []).filter(r => r.id !== id);
+        localStorage.setItem('tech_records_storage_mobile', JSON.stringify(allRecords));
+        renderCurrentTab();
+      }
+    }
+
+    // 모바일 카드 뷰 렌더링
+    function renderCurrentTab() {
+      if (activeTab === 'settings') return;
+
+      const startDate = document.getElementById('filter-start-date').value;
+      const endDate = document.getElementById('filter-end-date').value;
+      const kw = document.getElementById('filter-keyword').value.toLowerCase().trim();
+
+      let dataset = [];
+
+      if (activeTab === 'history') {
+        const checkedTabs = Array.from(document.querySelectorAll('.history-tab-cb:checked')).map(cb => cb.value);
+        checkedTabs.forEach(tk => {
+          (allRecords[tk] || []).forEach(it => dataset.push({ ...it, originalTab: tk }));
+        });
+        dataset.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.id || '').localeCompare(a.id || ''));
+      } else {
+        dataset = allRecords[activeTab] || [];
+      }
+
+      const filtered = dataset.filter(item => {
+        const matchDate = (!startDate || item.date >= startDate) && (!endDate || item.date <= endDate);
+        let matchKw = !kw;
+        if (kw) {
+          const values = Object.values(item).map(v => String(v).toLowerCase());
+          matchKw = values.some(v => v.includes(kw));
+        }
+        return matchDate && matchKw;
+      });
+
+      document.getElementById('view-subtitle').innerText = `총 ${filtered.length}건의 이력이 있습니다.`;
+      document.getElementById('card-row-count').innerText = `${filtered.length}건`;
+
+      renderMobileCardUI(filtered);
+    }
+
+    function renderMobileCardUI(data) {
+      const container = document.getElementById('mobile-card-list');
+      container.innerHTML = '';
+
+      if (data.length === 0) {
+        container.innerHTML = `<div class="bg-white p-8 text-center rounded-xl border border-slate-200 text-slate-400 text-xs">등록되거나 검색된 이력이 없습니다.</div>`;
+        return;
+      }
+
+      data.forEach(item => {
+        const card = document.createElement('div');
+        card.className = "bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm space-y-2 relative";
+
+        const targetTab = item.originalTab || activeTab;
+        const isMaint = targetTab === 'maintenance';
+        const titleText = isMaint ? item.equipment_name : item.title;
+        const detailText = isMaint ? `[증상] ${item.symptom} / [원인] ${item.cause} / [조치] ${item.action_taken}` : item.work_log;
+
+        let attachBadge = '';
+        if (item.attachment) {
+          attachBadge = `
+            <div class="inline-flex items-center space-x-1 bg-indigo-50 border border-indigo-200 rounded px-2 py-0.5 text-[10px] text-indigo-700">
+              <button onclick="openAttachment('${escapeHtml(item.attachment)}')" class="flex items-center space-x-1 truncate max-w-[130px]">
+                <i data-lucide="paperclip" class="w-3 h-3 flex-shrink-0"></i>
+                <span class="truncate font-semibold">${escapeHtml(item.attachment)}</span>
+              </button>
+              <button onclick="deleteAttachmentOnly('${targetTab}', '${item.id}', '${escapeHtml(item.attachment)}')" class="text-slate-400 hover:text-rose-600 pl-1">
+                <i data-lucide="x" class="w-3 h-3"></i>
+              </button>
+            </div>
+          `;
+        }
+
+        card.innerHTML = `
+          <div class="flex justify-between items-start border-b border-slate-100 pb-1.5">
+            <div class="space-y-0.5">
+              ${activeTab === 'history' ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 mr-1">${TAB_NAMES[targetTab]}</span>` : ''}
+              <span class="font-mono text-[11px] text-slate-400">${item.date}</span>
+              <span class="text-slate-300">·</span>
+              <span class="text-xs font-semibold text-slate-600">${escapeHtml(item.author || '-')}</span>
+            </div>
+            <div class="flex items-center space-x-1">
+              <button onclick="editRecord('${targetTab}', '${item.id}')" class="p-1 text-slate-400 hover:text-indigo-600"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
+              <button onclick="deleteRecord('${targetTab}', '${item.id}')" class="p-1 text-slate-400 hover:text-rose-600"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+            </div>
+          </div>
+          <div>
+            <h4 class="text-xs font-bold text-slate-900">${escapeHtml(titleText || '-')}</h4>
+            <p class="text-[11px] text-slate-600 mt-1 whitespace-pre-wrap leading-relaxed">${escapeHtml(detailText || '-')}</p>
+          </div>
+          ${item.notes ? `<div class="text-[10px] text-slate-400 bg-slate-50 p-1.5 rounded">기타: ${escapeHtml(item.notes)}</div>` : ''}
+          ${attachBadge ? `<div class="pt-1">${attachBadge}</div>` : ''}
+        `;
+        container.appendChild(card);
+      });
+      lucide.createIcons();
+    }
+
+    // 파일 내보내기/다운로드
+    async function exportSingleTab(type) {
+      const list = allRecords[activeTab] || [];
+      if (list.length === 0) return alert('출력할 데이터가 없습니다.');
+      const baseName = `기술정책부_${TAB_NAMES[activeTab]}_${new Date().toISOString().slice(0, 10)}`;
+
+      if (type === 'excel') {
+        const ws = XLSX.utils.json_to_sheet(list);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, TAB_NAMES[activeTab]);
+        XLSX.writeFile(wb, `${baseName}.xlsx`);
+      } else if (type === 'pdf') {
+        const elem = document.getElementById('print-capture-area');
+        html2pdf().set({ margin: 8, filename: `${baseName}.pdf`, jsPDF: { format: 'a4' } }).from(elem).save();
+      } else {
+        alert(`${type.toUpperCase()} 다운로드를 시작합니다.`);
+      }
+    }
+
+    // 모바일 설정 저장
+    async function saveMobileSettings() {
+      let ip = document.getElementById('cfg-server-ip').value.trim();
+      if (!ip.startsWith('http://') && !ip.startsWith('https://')) ip = 'http://' + ip;
+      if (!ip.endsWith('/api')) ip += '/api';
+
+      API_BASE = ip;
+      localStorage.setItem('mobile_api_base', API_BASE);
+
+      const payload = {
+        preset_name: "모바일 프리셋",
+        nas_path: document.getElementById('cfg-nas-path').value.trim(),
+        attachment_path: document.getElementById('cfg-attachment-path').value.trim(),
+        local_backup_path: "./local_exports",
+        kakao_token: document.getElementById('cfg-kakao-token').value.trim()
+      };
+
+      try {
+        await fetch(`${API_BASE}/config`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(payload)
+        });
+        alert('모바일 설정이 저장되었습니다.');
+        await checkServerHealth();
+      } catch (e) {
+        alert('서버에 연결할 수 없습니다. IP 주소를 다시 확인해 주세요.');
+      }
+    }
+
+    async function loadBackendConfig() {
+      try {
+        const res = await fetch(`${API_BASE}/config`);
+        if (res.ok) {
+          const cfg = await res.json();
+          document.getElementById('cfg-nas-path').value = cfg.nas_path || '';
+          document.getElementById('cfg-attachment-path').value = cfg.attachment_path || '';
+          document.getElementById('cfg-kakao-token').value = cfg.kakao_token || '';
+        }
+      } catch (e) {}
+    }
+  </script>
+</body>
+</html>
